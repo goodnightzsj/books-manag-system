@@ -1,0 +1,55 @@
+FROM python:3.11-slim
+
+# 使用国内镜像源加速（Debian）
+RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|security.debian.org/debian-security|mirrors.ustc.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources
+
+WORKDIR /app
+
+# 分两阶段：先安装编译依赖，构建完后删除
+RUN apt-get update && \
+    # 临时安装编译工具（用于构建Python包）
+    apt-get install -y --no-install-recommends \
+        gcc \
+        g++ \
+        libpq-dev \
+        build-essential \
+    && \
+    # 安装运行时依赖
+    apt-get install -y --no-install-recommends \
+        libpq5 \
+        libmagic1 \
+        postgresql-client \
+    && \
+    rm -rf /var/lib/apt/lists/*
+
+# 升级pip并使用国内PyPI镜像
+RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 复制requirements并安装Python依赖
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 清理编译工具（减小镜像体积）
+RUN apt-get purge -y --auto-remove \
+        gcc \
+        g++ \
+        build-essential \
+        libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# 复制应用代码
+COPY . .
+
+# 创建目录
+RUN mkdir -p /app/books /app/uploads
+
+# 复制并设置entrypoint
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]

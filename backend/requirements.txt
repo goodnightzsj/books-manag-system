@@ -1,0 +1,52 @@
+# FastAPI and Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Redis
+redis==5.0.1
+hiredis==2.3.2
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+bcrypt==4.0.1  # Downgraded to 4.0.1 for compatibility with passlib
+
+# Pydantic
+pydantic==2.5.3
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# File Processing and Metadata
+ebookmeta==1.2.6
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+mobi==0.3.3
+python-magic==0.4.27
+# python-magic-bin==0.4.14  # Windows only, not needed in Linux
+Pillow==10.2.0
+PyMuPDF==1.23.8
+
+# HTTP Client
+httpx==0.26.0
+requests==2.31.0
+
+# Celery and Task Queue
+celery==5.3.6
+flower==2.0.1
+
+# Data Science (for recommendations)
+scikit-learn==1.4.0
+numpy==1.26.3
+pandas==2.1.4
+
+# Utilities
+python-dateutil==2.8.2
+aiofiles==23.2.1
