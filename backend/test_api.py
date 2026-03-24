@@ -2,13 +2,14 @@
 简单的API测试脚本
 需要先启动后端服务
 """
+import os
 import requests
 import json
 
 # 配置
 BASE_URL = "http://localhost:8000/api/v1"
-USERNAME = "admin"
-PASSWORD = "admin123"
+USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 def print_response(response, title="Response"):
     """打印格式化的响应"""
@@ -147,7 +148,9 @@ def main():
         print("\n💡 Make sure:")
         print("   1. Backend service is running (run_local.bat)")
         print("   2. Database is set up (setup_db.bat)")
-        print("   3. Admin user exists (username: admin, password: admin123)")
+        print("   3. ADMIN_USERNAME / ADMIN_PASSWORD are set correctly for the bootstrap admin")
+        if not PASSWORD:
+            print("   4. ADMIN_PASSWORD is currently empty in your environment")
         return
     
     results["User Login"] = True

@@ -7,7 +7,6 @@ python-multipart==0.0.6
 sqlalchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9
-asyncpg==0.29.0
 
 # Redis
 redis==5.0.1
@@ -28,8 +27,6 @@ email-validator==2.1.0
 ebookmeta==1.2.6
 PyPDF2==3.0.1
 pdfplumber==0.10.3
-mobi==0.3.3
-python-magic==0.4.27
 # python-magic-bin==0.4.14  # Windows only, not needed in Linux
 Pillow==10.2.0
 PyMuPDF==1.23.8
@@ -41,11 +38,9 @@ requests==2.31.0
 # Celery and Task Queue
 celery==5.3.6
 flower==2.0.1
+kombu==5.3.5
 
 # Data Science (for recommendations)
-scikit-learn==1.4.0
-numpy==1.26.3
-pandas==2.1.4
 
 # Utilities
 python-dateutil==2.8.2

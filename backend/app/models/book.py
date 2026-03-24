@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Integer, Float, Text, Enum, JSON, BigInteger, ForeignKey, Table
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -13,6 +13,13 @@ class FileFormat(str, enum.Enum):
     AZW3 = "azw3"
     TXT = "txt"
     DJVU = "djvu"
+
+
+class HashStatus(str, enum.Enum):
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
 
 # Association table for many-to-many relationship
 book_category = Table(
@@ -37,12 +44,20 @@ class Book(Base):
     file_path = Column(String, nullable=False)
     file_format = Column(Enum(FileFormat), nullable=False)
     file_size = Column(BigInteger)
+    file_mtime = Column(DateTime)
+    content_hash = Column(String, index=True)
+    hash_algorithm = Column(String)
+    hash_status = Column(Enum(HashStatus), default=HashStatus.PENDING, nullable=False)
+    hash_error = Column(Text)
     language = Column(String, default="zh")
     page_count = Column(Integer)
     rating = Column(Float)
     rating_count = Column(Integer)
     tags = Column(JSON, default=list)
     book_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid SQLAlchemy reserved word
+    source_provider = Column(String)
+    metadata_synced_at = Column(DateTime)
+    search_vector = Column(TSVECTOR)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     indexed_at = Column(DateTime)
@@ -50,6 +65,7 @@ class Book(Base):
     # Relationships
     categories = relationship("Category", secondary=book_category, back_populates="books")
     reading_progress = relationship("ReadingProgress", back_populates="book", cascade="all, delete-orphan")
+    notes = relationship("BookNote", back_populates="book", cascade="all, delete-orphan")
 
 class Category(Base):
     __tablename__ = "categories"
@@ -62,8 +78,5 @@ class Category(Base):
     
     # Relationships
     books = relationship("Book", secondary=book_category, back_populates="categories")
-    children = relationship("Category", back_populates="parent", remote_side=[id])
-    parent = relationship("Category", back_populates="children", remote_side=[parent_id])
-
-# Keep for backward compatibility
-BookCategory = book_category
+    parent = relationship("Category", back_populates="children", remote_side=[id])
+    children = relationship("Category", back_populates="parent")

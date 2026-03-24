@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+from app.models.user import UserRole
 
 class UserBase(BaseModel):
     username: str
@@ -17,7 +18,7 @@ class UserLogin(BaseModel):
 
 class User(UserBase):
     id: UUID
-    role: str
+    role: UserRole
     created_at: datetime
     
     class Config:

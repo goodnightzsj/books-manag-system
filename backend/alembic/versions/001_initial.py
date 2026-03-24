@@ -1,7 +1,7 @@
 """initial migration
 
 Revision ID: 001
-Revises: 
+Revises:
 Create Date: 2024-01-01 00:00:00.000000
 
 """
@@ -58,7 +58,7 @@ def upgrade():
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('cover_url', sa.String(), nullable=True),
     sa.Column('file_path', sa.String(), nullable=False),
-    sa.Column('file_format', sa.Enum('PDF', 'EPUB', 'MOBI', 'AZW3', 'TXT', 'DJVU', name='fileformat'), nullable=False),
+    sa.Column('file_format', sa.Enum('pdf', 'epub', 'mobi', 'azw3', 'txt', 'djvu', name='fileformat'), nullable=False),
     sa.Column('file_size', sa.BigInteger(), nullable=True),
     sa.Column('language', sa.String(), nullable=True),
     sa.Column('page_count', sa.Integer(), nullable=True),
@@ -118,7 +118,7 @@ def downgrade():
     op.drop_index(op.f('ix_users_username'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
-    
+
     # Drop enums
     op.execute('DROP TYPE IF EXISTS userrole')
     op.execute('DROP TYPE IF EXISTS fileformat')

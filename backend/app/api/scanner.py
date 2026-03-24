@@ -1,233 +1,168 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
-from typing import Optional
-from pydantic import BaseModel
+from pathlib import Path
+from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import require_admin
 from app.db.base import get_db
+from app.models.book import Book
 from app.models.user import User
-from app.api.deps import get_current_user
-from app.services.scanner_service import BookScanner
-from app.services.metadata_service import OnlineMetadataService
-from app.services.cover_service import CoverService
-from app.core.config import settings
+from app.schemas.scanner import (
+    ScanDirectoryRequest,
+    ScanFileRequest,
+    ScanJobCreatedResponse,
+    ScanJobItemListResponse,
+    ScanJobListResponse,
+    ScanJobResponse,
+)
+from app.services.file_access_service import FileAccessService
+from app.services.scan_job_service import ScanJobService
+from app.services.task_dispatch_service import TaskDispatchService
 
 router = APIRouter(prefix="/scanner", tags=["Scanner"])
 
-class ScanRequest(BaseModel):
-    directory: str
-    
-class ScanFileRequest(BaseModel):
-    file_path: str
 
-class SyncMetadataRequest(BaseModel):
-    book_id: str
-    force: bool = False
-
-@router.post("/scan-directory")
-def scan_directory(
-    request: ScanRequest,
-    background_tasks: BackgroundTasks,
+@router.post("/jobs/directory", response_model=ScanJobCreatedResponse)
+def create_directory_scan_job(
+    request: ScanDirectoryRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin),
 ):
-    """
-    扫描指定目录中的所有书籍文件
-    """
-    scanner = BookScanner(db)
-    
     try:
-        # 在后台任务中执行扫描（避免超时）
-        stats = scanner.scan_directory(request.directory)
-        
-        return {
-            "message": "Directory scanned successfully",
-            "stats": stats
-        }
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+        file_access = FileAccessService()
+        normalized = file_access.resolve_scan_root(request.directory)
+        if not Path(normalized).is_dir():
+            raise ValueError(f"Not a directory: {normalized}")
+        job = ScanJobService(db).create_job(
+            job_type="scan_directory",
+            requested_path=request.directory,
+            normalized_path=normalized,
+            created_by=current_user.id,
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error scanning directory: {str(e)}"
-        )
+        TaskDispatchService().enqueue_scan_directory(job.id)
+        return ScanJobCreatedResponse(job_id=job.id, status="queued", message="Directory scan queued")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-@router.post("/scan-file")
-def scan_file(
+
+@router.post("/jobs/file", response_model=ScanJobCreatedResponse)
+def create_file_scan_job(
     request: ScanFileRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin),
 ):
-    """
-    扫描单个文件并添加到图书馆
-    """
-    scanner = BookScanner(db)
-    
     try:
-        book = scanner.scan_single_file(request.file_path)
-        
-        if book:
-            return {
-                "message": "File scanned successfully",
-                "book_id": str(book.id),
-                "title": book.title
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to scan file"
-            )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+        normalized = FileAccessService().ensure_supported_file(request.file_path)
+        job = ScanJobService(db).create_job(
+            job_type="scan_file",
+            requested_path=request.file_path,
+            normalized_path=normalized,
+            created_by=current_user.id,
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error scanning file: {str(e)}"
-        )
+        TaskDispatchService().enqueue_scan_file(job.id)
+        return ScanJobCreatedResponse(job_id=job.id, status="queued", message="File scan queued")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-@router.post("/sync-metadata/{book_id}")
-async def sync_metadata(
-    book_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    从在线源同步书籍元数据
-    """
-    from app.models.book import Book
-    from uuid import UUID
-    
-    try:
-        book_uuid = UUID(book_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid book ID format"
-        )
-    
-    book = db.query(Book).filter(Book.id == book_uuid).first()
-    if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found"
-        )
-    
-    online_service = OnlineMetadataService()
-    cover_service = CoverService(settings.UPLOADS_DIR)
-    
-    # 尝试从豆瓣获取
-    metadata = None
-    if book.isbn:
-        metadata = await online_service.fetch_from_douban(isbn=book.isbn)
-    
-    if not metadata and book.title:
-        metadata = await online_service.fetch_from_douban(title=book.title)
-    
-    # 如果豆瓣没有，尝试Google Books
-    if not metadata and book.isbn:
-        metadata = await online_service.fetch_from_google_books(
-            isbn=book.isbn,
-            api_key=settings.GOOGLE_BOOKS_API_KEY
-        )
-    
-    if metadata:
-        # 更新书籍信息
-        if metadata.get('title'):
-            book.title = metadata['title']
-        if metadata.get('subtitle'):
-            book.subtitle = metadata['subtitle']
-        if metadata.get('author'):
-            book.author = metadata['author']
-        if metadata.get('publisher'):
-            book.publisher = metadata['publisher']
-        if metadata.get('description'):
-            book.description = metadata['description']
-        if metadata.get('isbn'):
-            book.isbn = metadata['isbn']
-        if metadata.get('rating'):
-            book.rating = float(metadata['rating'])
-        if metadata.get('rating_count'):
-            book.rating_count = int(metadata['rating_count'])
-        if metadata.get('tags'):
-            book.tags = metadata['tags']
-        
-        # 下载封面
-        if metadata.get('cover_url') and not book.cover_url:
-            cover_path = await cover_service.download_cover(
-                metadata['cover_url'],
-                str(book.id)
-            )
-            if cover_path:
-                book.cover_url = cover_path
-        
-        db.commit()
-        db.refresh(book)
-        
-        return {
-            "message": "Metadata synced successfully",
-            "book": {
-                "id": str(book.id),
-                "title": book.title,
-                "author": book.author,
-                "cover_url": book.cover_url
-            }
-        }
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No metadata found online"
-        )
 
-@router.post("/extract-cover/{book_id}")
-def extract_cover(
-    book_id: str,
+@router.get("/jobs", response_model=ScanJobListResponse)
+def list_scan_jobs(
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin),
 ):
-    """
-    从书籍文件中提取封面
-    """
-    from app.models.book import Book, FileFormat
-    from uuid import UUID
-    
-    try:
-        book_uuid = UUID(book_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid book ID format"
-        )
-    
-    book = db.query(Book).filter(Book.id == book_uuid).first()
+    items, total = ScanJobService(db).list_jobs(limit=limit)
+    return ScanJobListResponse(items=items, total=total)
+
+
+@router.get("/jobs/{job_id}", response_model=ScanJobResponse)
+def get_scan_job(
+    job_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    job = ScanJobService(db).get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan job not found")
+    return job
+
+
+@router.get("/jobs/{job_id}/items", response_model=ScanJobItemListResponse)
+def get_scan_job_items(
+    job_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    service = ScanJobService(db)
+    job = service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan job not found")
+    items, total = service.get_job_items(job_id)
+    return ScanJobItemListResponse(items=items, total=total)
+
+
+@router.post("/jobs/{job_id}/retry-failed")
+def retry_failed_scan_items(
+    job_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    service = ScanJobService(db)
+    job = service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan job not found")
+    TaskDispatchService().enqueue_retry_failed_items(job_id)
+    return {"job_id": str(job_id), "status": "queued", "message": "Retry failed items queued"}
+
+
+@router.post("/books/{book_id}/metadata-sync")
+def queue_metadata_sync(
+    book_id: UUID,
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found"
-        )
-    
-    cover_service = CoverService(settings.UPLOADS_DIR)
-    cover_path = None
-    
-    if book.file_format == FileFormat.PDF:
-        cover_path = cover_service.extract_cover_from_pdf(book.file_path, str(book.id))
-    elif book.file_format == FileFormat.EPUB:
-        cover_path = cover_service.extract_cover_from_epub(book.file_path, str(book.id))
-    
-    if cover_path:
-        book.cover_url = cover_path
-        db.commit()
-        
-        return {
-            "message": "Cover extracted successfully",
-            "cover_url": cover_path
-        }
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to extract cover"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    task_id = TaskDispatchService().enqueue_metadata_sync(book_id, force=force)
+    return {
+        "book_id": str(book_id),
+        "status": "queued",
+        "task_id": task_id,
+        "message": "Metadata sync queued",
+    }
+
+
+@router.post("/books/{book_id}/extract-cover")
+def queue_cover_extract(
+    book_id: UUID,
+    prefer_remote: bool = Query(False),
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    metadata_cover_url = None
+    if isinstance(book.book_metadata, dict):
+        cover_candidate = book.book_metadata.get("cover_url")
+        if isinstance(cover_candidate, str) and cover_candidate.strip():
+            metadata_cover_url = cover_candidate.strip()
+
+    task_id = TaskDispatchService().enqueue_cover_sync(
+        book_id,
+        prefer_remote=prefer_remote,
+        source_url=metadata_cover_url,
+        force=force,
+    )
+    return {
+        "book_id": str(book_id),
+        "status": "queued",
+        "task_id": task_id,
+        "message": "Cover extraction queued",
+    }
