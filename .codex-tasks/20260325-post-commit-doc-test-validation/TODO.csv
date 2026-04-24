@@ -1,0 +1,4 @@
+id,task,status,acceptance_criteria,validation_command,completed_at,retry_count,notes
+1,建立真相文件并确认收尾范围,DONE,Task files created and target docs/code inspected,test -f .codex-tasks/20260325-post-commit-doc-test-validation/SPEC.md && test -f .codex-tasks/20260325-post-commit-doc-test-validation/TODO.csv && test -f .codex-tasks/20260325-post-commit-doc-test-validation/PROGRESS.md,2026-03-25T00:00:00Z,0,已建立 Full Single 真相文件并确认目标 llmdoc 与对应源码
+2,更新 review fixes 相关 llmdoc,DONE,Target llmdoc files reflect review fixes,python -m py_compile backend/app/api/books.py backend/app/schemas/reading.py backend/app/services/reading_service.py backend/app/services/book_ingest_service.py,2026-03-25T00:00:00Z,0,已更新 API endpoints / schemas / services 文档并用 grep 核对关键表述
+3,记录本步验证并收口到下一步,DONE,Progress file records validation and next step,test -f .codex-tasks/20260325-post-commit-doc-test-validation/PROGRESS.md,2026-03-25T00:00:00Z,0,已记录 py_compile 通过，下一步进入回归测试规划与实现

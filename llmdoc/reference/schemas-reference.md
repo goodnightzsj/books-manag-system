@@ -70,7 +70,7 @@ Source: `backend/app/schemas/reading.py:10-75`
 - `EpubLocator` -- CFI/progression-based locator for EPUB readers.
 - `TxtLocator` -- line/column locator for TXT readers.
 - `ReadingLocator` -- discriminated union across PDF/EPUB/TXT locator payloads.
-- `ReadingProgressUpdate` -- request body for current-user progress upsert.
+- `ReadingProgressUpdate` -- request body for current-user progress upsert; accepts only progress, status, locator, and reading timestamps, and no longer exposes legacy `notes` / `bookmarks` writes at `backend/app/schemas/reading.py:32-39`.
 - `ReadingProgressResponse` -- ORM-backed response for one current-user progress row.
 - `RecentReadingItem` -- joined book/progress summary for recent reading lists.
 - `RecentReadingList` -- list wrapper for recent items.

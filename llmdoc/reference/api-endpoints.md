@@ -28,8 +28,8 @@ Source: `backend/app/api/books.py:17-118`
 |---|---|---|---|---|
 | GET | `/books` | User | `get_books` | Page-based pagination with `q`, `author`, `category_id`, `format`, `sort`, and `order` forwarded to `BookSearchService`. |
 | GET | `/books/{book_id}` | User | `get_book` | Returns one book or 404. |
-| POST | `/books` | Admin | `create_book` | Accepts `FileFormat` enum input and refreshes `books.search_vector` after insert. |
-| PUT | `/books/{book_id}` | Admin | `update_book` | Partial update via `model_dump(exclude_unset=True)` and refreshes `books.search_vector`. |
+| POST | `/books` | Admin | `create_book` | Accepts `FileFormat` enum input, refreshes `books.search_vector` after insert, and maps unique `file_path` / `isbn` conflicts to `409 Conflict` at `backend/app/api/books.py:18-90`. |
+| PUT | `/books/{book_id}` | Admin | `update_book` | Partial update via `model_dump(exclude_unset=True)`, refreshes `books.search_vector`, and maps unique `file_path` / `isbn` conflicts to `409 Conflict` at `backend/app/api/books.py:18-118`. |
 | DELETE | `/books/{book_id}` | Admin | `delete_book` | Hard delete, 204. |
 
 ## 5. Categories Router (`/api/v1/categories`)

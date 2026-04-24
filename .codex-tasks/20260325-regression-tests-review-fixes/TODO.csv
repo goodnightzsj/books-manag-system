@@ -1,0 +1,5 @@
+id,task,status,acceptance_criteria,validation_command,completed_at,retry_count,notes
+1,建立真相文件并确认测试约束,DONE,Task files created and existing test situation inspected,test -f .codex-tasks/20260325-regression-tests-review-fixes/SPEC.md && test -f .codex-tasks/20260325-regression-tests-review-fixes/TODO.csv && test -f .codex-tasks/20260325-regression-tests-review-fixes/PROGRESS.md,2026-03-25T00:00:00Z,0,已确认无现成 pytest/unittest 基线且本地缺 sqlalchemy/pydantic_settings/jose，改用标准库静态回归测试
+2,实现 review fixes 的最小回归测试,DONE,Regression test file covers target review fixes,python -m py_compile backend/tests/test_review_fix_regressions.py,2026-03-25T00:00:00Z,0,已新增 `backend/tests/test_review_fix_regressions.py`，使用标准库 `unittest + ast` 覆盖 4 个修复点
+3,执行回归测试并修正最小问题,DONE,Regression tests pass,python -m unittest discover -s backend/tests -p "test_review_fix_regressions.py",2026-03-25T00:00:00Z,1,首轮失败为测试定位与字符串断言问题，已最小修正后通过
+4,记录验证结果并收口到下一步,DONE,Progress file records outcomes and next action,test -f .codex-tasks/20260325-regression-tests-review-fixes/PROGRESS.md,2026-03-25T00:00:00Z,0,已记录验证结果，下一步进入可复现运行闭环

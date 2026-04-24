@@ -11,10 +11,10 @@
 - `backend/app/services/scan_job_service.py:11-140` -- `ScanJobService` for `scan_jobs` / `scan_job_items` lifecycle and counters.
 - `backend/app/services/task_dispatch_service.py:7-65` -- `TaskDispatchService` as the Celery dispatch boundary for scan, hash, enrich, and maintenance work.
 - `backend/app/services/scanner_service.py:8-36` -- `ScanService`, now limited to single-item orchestration and hash-followup decisions.
-- `backend/app/services/book_ingest_service.py:17-264` -- `BookIngestService` for scanned-book upsert, hash application, and duplicate-book merge.
+- `backend/app/services/book_ingest_service.py:17-266` -- `BookIngestService` for scanned-book upsert, hash application, and duplicate-book merge; duplicate field merge is centralized in `MERGEABLE_BOOK_FIELDS` at `backend/app/services/book_ingest_service.py:25-42`.
 - `backend/app/services/hash_service.py:9-66` -- `HashService` for hash decisions, SHA-256 computation, and error classification.
 - `backend/app/services/search_service.py:13-112` -- `BookSearchService` for FTS/trigram lookup, category/format filtering, sort selection, and `search_vector` refresh.
-- `backend/app/services/reading_service.py:11-73` -- `ReadingProgressService` for per-user progress lookup, upsert, auto status transitions, and recent-reading queries.
+- `backend/app/services/reading_service.py:11-71` -- `ReadingProgressService` for per-user progress lookup, upsert, auto status transitions, and recent-reading queries; progress upsert no longer writes legacy `notes` / `bookmarks` fields at `backend/app/services/reading_service.py:22-42`.
 - `backend/app/services/note_service.py:10-58` -- `NoteService` for per-user `book_notes` list/create/update/delete.
 - `backend/app/services/metadata_service.py:17-106` -- `MetadataExtractor` for local file metadata.
 - `backend/app/services/metadata_service.py:109-226` -- `OnlineMetadataService` for Douban and Google Books lookups.
@@ -40,7 +40,7 @@
 - **5. Item processing:** `process_scan_item()` claims a queued item, runs `ScanService.process_file()`, writes item status, finalizes the job when possible, and conditionally dispatches hash computation at `backend/app/tasks/scan_tasks.py:61-110`.
 - **6. Single-item orchestration:** `ScanService.process_file()` snapshots the file, extracts local metadata, and delegates to `BookIngestService.upsert_scanned_book()` at `backend/app/services/scanner_service.py:21-36`.
 - **7. Hash computation:** `hash.compute_book_hash()` resolves the current file path, computes SHA-256, and calls `BookIngestService.apply_hash_result()` at `backend/app/tasks/hash_tasks.py:11-43`.
-- **8. Duplicate merge:** `BookIngestService.apply_hash_result()` selects a canonical `Book` and `merge_duplicate_books()` rebinds reading progress, notes, category links, and scan job item references before deleting the duplicate row at `backend/app/services/book_ingest_service.py:97-174`.
+- **8. Duplicate merge:** `BookIngestService.apply_hash_result()` selects a canonical `Book` and `merge_duplicate_books()` rebinds reading progress, notes, category links, and scan job item references before deleting the duplicate row at `backend/app/services/book_ingest_service.py:115-192`; non-file duplicate field merge now iterates the centralized `MERGEABLE_BOOK_FIELDS` list at `backend/app/services/book_ingest_service.py:25-42` and `:208-224`.
 
 ### Phase 2 -- Online Enrichment
 
