@@ -46,6 +46,13 @@ All runtime settings are defined in `backend/app/core/config.py:6-46` via one `S
 | `MAX_UPLOAD_SIZE` | `int` | `104857600` | Declared only; no active consumer in current code |
 | `DOUBAN_API_URL` | `str` | `"https://douban.uieee.com"` | Declared in settings and used as the default provider URL in `backend/app/services/metadata_service.py:110-145` |
 | `GOOGLE_BOOKS_API_KEY` | `str` | `""` | `backend/app/tasks/metadata_tasks.py:18-21` |
+| `MEILI_URL` | `str` | `""` | `backend/app/services/meilisearch_service.py` -- empty disables the adapter |
+| `MEILI_MASTER_KEY` | `str` | `""` | `backend/app/services/meilisearch_service.py` |
+| `RATE_LIMIT_PER_MINUTE` | `int` | `0` | `backend/app/core/rate_limit.py`; middleware mounts only when > 0 |
+| `CACHE_TTL_SECONDS` | `int` | `0` | `backend/app/core/cache.py`; Redis cache mounts only when > 0 |
+| `METRICS_ENABLED` | `bool` | `True` | `backend/app/main.py`, exposes `/metrics` and the latency middleware |
+| `LOG_LEVEL` | `str` | `"INFO"` | `backend/app/core/logging_config.py` |
+| `LOG_JSON` | `bool` | `False` | `backend/app/core/logging_config.py` |
 
 ## 4. Loading Rules
 

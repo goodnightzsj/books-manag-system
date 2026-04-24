@@ -18,14 +18,14 @@ def get_recent_reading(
     current_user: User = Depends(get_current_user),
 ):
     items, total = ReadingProgressService(db).list_recent_for_user(user=current_user, limit=limit)
-    return {
-        "items": [
+    return RecentReadingList(
+        items=[
             {
                 "book_id": book.id,
                 "title": book.title,
                 "author": book.author,
                 "cover_url": book.cover_url,
-                "file_format": book.file_format.value,
+                "file_format": book.file_format,
                 "progress_percent": progress.progress_percent,
                 "status": progress.status,
                 "locator": progress.locator,
@@ -33,8 +33,8 @@ def get_recent_reading(
             }
             for progress, book in items
         ],
-        "total": total,
-    }
+        total=total,
+    )
 
 
 @router.get("/{book_id}", response_model=ReadingProgressResponse)

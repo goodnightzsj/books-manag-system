@@ -66,6 +66,7 @@ class Book(Base):
     categories = relationship("Category", secondary=book_category, back_populates="books")
     reading_progress = relationship("ReadingProgress", back_populates="book", cascade="all, delete-orphan")
     notes = relationship("BookNote", back_populates="book", cascade="all, delete-orphan")
+    files = relationship("BookFile", back_populates="book", cascade="all, delete-orphan")
 
 class Category(Base):
     __tablename__ = "categories"

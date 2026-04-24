@@ -1,0 +1,23 @@
+{
+  "name": "books-mobile-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacitor wrapper around frontend/reader-web built output.",
+  "scripts": {
+    "build:web": "cd ../../frontend/reader-web && npm run build && cp -R .next/standalone ../../apps/mobile-shell/www 2>/dev/null || true",
+    "cap:init": "cap init books-reader com.books.reader --web-dir=www",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.1.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "6.1.0",
+    "@capacitor/android": "6.1.0",
+    "@capacitor/ios": "6.1.0"
+  }
+}

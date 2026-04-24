@@ -16,6 +16,11 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    display_name: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=6)
+
 class User(UserBase):
     id: UUID
     role: UserRole

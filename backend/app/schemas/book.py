@@ -27,7 +27,13 @@ class BookUpdate(BaseModel):
     subtitle: Optional[str] = None
     author: Optional[str] = None
     publisher: Optional[str] = None
+    isbn: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[str] = None
+    cover_url: Optional[str] = None
+    page_count: Optional[int] = Field(default=None, ge=0)
+    rating: Optional[float] = Field(default=None, ge=0, le=10)
+    rating_count: Optional[int] = Field(default=None, ge=0)
     tags: Optional[List[str]] = None
 
 

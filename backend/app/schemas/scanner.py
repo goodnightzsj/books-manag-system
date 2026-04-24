@@ -68,3 +68,16 @@ class ScanJobItemResponse(BaseModel):
 class ScanJobItemListResponse(BaseModel):
     items: list[ScanJobItemResponse]
     total: int
+
+
+class ScanJobActionResponse(BaseModel):
+    job_id: UUID
+    status: ScanJobStatus
+    message: str
+
+
+class BookTaskEnqueuedResponse(BaseModel):
+    book_id: UUID
+    status: Literal["queued"]
+    task_id: Optional[str] = None
+    message: str

@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models.book import Book
+from app.services.meilisearch_service import MeiliSearchService
 from app.services.search_service import BookSearchService
 
 logger = logging.getLogger(__name__)
@@ -303,6 +304,7 @@ class MetadataSyncService:
         book.source_provider = provider
         book.metadata_synced_at = datetime.utcnow()
         BookSearchService(self.db).refresh_document(book.id)
+        MeiliSearchService().upsert_book(book)
 
         cover_source_url = metadata.get("cover_url") if self._has_value(metadata.get("cover_url")) else None
         return MetadataSyncResult(

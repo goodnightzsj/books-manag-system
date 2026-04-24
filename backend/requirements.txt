@@ -45,3 +45,6 @@ kombu==5.3.5
 # Utilities
 python-dateutil==2.8.2
 aiofiles==23.2.1
+
+# Observability
+prometheus-client==0.20.0

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.models.book import FileFormat
 from app.models.reading import ReadingStatus
 
 
@@ -61,7 +62,7 @@ class RecentReadingItem(BaseModel):
     title: str
     author: str | None = None
     cover_url: str | None = None
-    file_format: str
+    file_format: FileFormat
     progress_percent: float
     status: ReadingStatus
     locator: ReadingLocator | None = None

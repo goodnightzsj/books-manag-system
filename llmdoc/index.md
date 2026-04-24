@@ -1,6 +1,6 @@
 # Books Management System -- Documentation Index
 
-Chinese-focused ebook library backend: creates persisted scan jobs for files inside the configured books directory, queues metadata and cover enrichment through Celery, reconciles stalled jobs through beat, serves book files with Range-aware streaming, and exposes a JWT-authenticated REST API with admin-gated write and scanner operations.
+Chinese-focused ebook library system. Backend creates persisted scan jobs for files inside the configured books directory, queues metadata and cover enrichment through Celery, reconciles stalled jobs through beat, serves book files with Range-aware streaming, and exposes a JWT-authenticated REST API with admin-gated write and scanner operations. Frontend is split into `admin-web` (Next.js console) and `reader-web` (Next.js PDF/EPUB/TXT reader); `apps/` provides Capacitor (mobile) and Tauri 2 (desktop) shells that reuse `reader-web`.
 
 ## Tech Stack
 
@@ -12,8 +12,13 @@ Chinese-focused ebook library backend: creates persisted scan jobs for files ins
 | Database | PostgreSQL 15+ |
 | Cache | Redis 7+ |
 | Auth | JWT (HS256) via python-jose, bcrypt via passlib |
-| Migrations | Alembic (`backend/alembic/versions/001_initial.py`) |
-| Containerization | Docker |
+| Migrations | Alembic (`backend/alembic/versions/001_initial.py`..`004_bookmarks_and_annotations.py`) |
+| Containerization | Docker + `docker-compose.yml` at repo root |
+| Frontend | Next.js 14 (App Router) + TypeScript (`frontend/admin-web`, `frontend/reader-web`) |
+| Mobile / Desktop | Capacitor 6 (`apps/mobile-shell`), Tauri 2 (`apps/desktop-shell`) |
+| Search (Phase 2) | Meilisearch adapter (`app/services/meilisearch_service.py`), enabled by `MEILI_URL` |
+| Observability | `/metrics` (Prometheus), structured logging via `LOG_JSON` |
+| Rate limiting | Redis token bucket at `app/core/rate_limit.py`, enabled by `RATE_LIMIT_PER_MINUTE` |
 
 ## Overview
 
@@ -35,7 +40,7 @@ Chinese-focused ebook library backend: creates persisted scan jobs for files ins
 
 ## Reference
 
-- `reference/api-endpoints.md` -- All 39 routed endpoints across 8 routers, including auth level, queued scanner actions, and file streaming behavior.
+- `reference/api-endpoints.md` -- All routed endpoints across 9 routers (auth, books, scanner, categories, reading-progress, notes, annotations, files, recommendations), including auth level, queued scanner actions, and file streaming behavior.
 - `reference/coding-conventions.md` -- Project layout, sync FastAPI/SQLAlchemy patterns, and dependency usage.
 - `reference/config-reference.md` -- `Settings` fields, defaults, and actual consumers.
 - `reference/git-conventions.md` -- Observed git workflow, commit style, and `.gitignore` status.
@@ -53,4 +58,6 @@ Chinese-focused ebook library backend: creates persisted scan jobs for files ins
 
 **Work on scanning, jobs, metadata, or cover tasks:** Read `guides/scanning-workflow.md`, then `architecture/services-architecture.md`.
 
-**Deploy or configure:** Read `guides/deployment-guide.md` and `reference/config-reference.md`.
+**Deploy or configure:** Read `guides/deployment-guide.md` and `reference/config-reference.md`. The `docker-compose.yml` at the repo root boots `postgres / redis / api / worker / beat / nginx`; bare-metal templates live in `infra/deploy/systemd/`.
+
+**Work on frontend:** `frontend/admin-web/` for the admin console (books / scanner / categories); `frontend/reader-web/` for the browser reader (PDF.js / epub.js / TXT + progress sync). Shells in `apps/` wrap the reader build for mobile / desktop.

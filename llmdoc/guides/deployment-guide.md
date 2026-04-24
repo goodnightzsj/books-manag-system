@@ -1,10 +1,12 @@
 # How to Deploy the Books Management System
 
-This guide covers the current Docker-oriented backend deployment flow.
+Three supported deployment paths: **Docker Compose** (recommended),
+**bare-metal systemd** (VPS / Ubuntu / CentOS), and **local dev**.
 
 ## Prerequisites
 
-Required settings come from `backend/app/core/config.py:6-46`.
+Runtime settings live in `backend/app/core/config.py`. Full key
+reference: `llmdoc/reference/config-reference.md`.
 
 ### Required
 
@@ -12,50 +14,115 @@ Required settings come from `backend/app/core/config.py:6-46`.
 - `REDIS_URL`
 - `SECRET_KEY`
 
-### Optional but operationally important
+### Operationally important
 
-- `ADMIN_USERNAME` -- defaults to `admin`
-- `ADMIN_EMAIL` -- defaults to `admin@example.com`
-- `ADMIN_PASSWORD` -- empty by default; required only if you want automatic admin bootstrap
-- `BOOKS_DIR` -- defaults to `/app/books`
-- `UPLOADS_DIR` -- defaults to `/app/uploads`
+- `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` -- empty password
+  skips admin bootstrap.
+- `BOOKS_DIR`, `UPLOADS_DIR` -- mount points.
+- `MEILI_URL` / `MEILI_MASTER_KEY` -- optional Phase-2 search; empty
+  falls back to PostgreSQL FTS exclusively.
+- `RATE_LIMIT_PER_MINUTE` -- 0 disables the Redis rate limiter.
+- `CACHE_TTL_SECONDS` -- 0 disables the recommendation / hot-read cache.
+- `METRICS_ENABLED`, `LOG_JSON`, `LOG_LEVEL` -- observability toggles.
 
-## Docker Deployment
+## Option 1: Docker Compose (recommended)
 
-1. **Build the image.** Main image definition: `backend/Dockerfile:1-55`. It installs build deps temporarily, runtime packages (`libpq5`, `libmagic1`, `postgresql-client`), installs Python dependencies, then purges build tools. An alternative image exists at `backend/Dockerfile.optimized:1-35`.
-2. **Provide service discovery for Postgres and Redis.** The startup script still checks `postgres` and `redis` directly at `backend/entrypoint.sh:6-31`.
-3. **Mount persistent directories.** The image creates `/app/books` and `/app/uploads` at `backend/Dockerfile:46-47`.
-4. **Expose port 8000 for the API role.** The container listens on port 8000 and the Dockerfile exposes it at `backend/Dockerfile:53`.
-5. **Choose the runtime role with `APP_ROLE`.** `backend/entrypoint.sh:4-95` supports `api`, `worker`, and `beat`.
-6. **Startup sequence:** `backend/entrypoint.sh:82-95`
-   - All roles wait for PostgreSQL and Redis readiness first.
-   - `APP_ROLE=api` runs `alembic upgrade head`, optionally bootstraps the admin account, then starts uvicorn at `backend/entrypoint.sh:85-88`.
-   - `APP_ROLE=worker` starts Celery worker processes and defaults `CELERY_QUEUES` to `scan,enrich,maintenance` at `backend/entrypoint.sh:74-76`.
-   - `APP_ROLE=beat` starts Celery beat at `backend/entrypoint.sh:78-79`.
-7. **Verify service health.** Call `GET /health` from `backend/app/main.py:37-39` against the API role.
+The repo ships `docker-compose.yml` at the root, wiring
+`postgres / redis / api / worker / beat / nginx` with healthchecks and
+persistent volumes. Supporting templates live in `infra/docker/nginx/`.
 
-## Local Development Startup
+```bash
+cp .env.example .env
+# edit .env: set POSTGRES_PASSWORD, SECRET_KEY, ADMIN_PASSWORD at minimum
+mkdir -p books uploads
+docker compose up -d --build
+docker compose logs -f api
+# first run creates admin via entrypoint if ADMIN_PASSWORD is set
+curl -s http://localhost/health
+```
 
-1. Install dependencies from `backend/requirements.txt`.
-2. Create `backend/.env` with at least `DATABASE_URL`, `REDIS_URL`, and `SECRET_KEY`.
-3. Run `alembic upgrade head` from `backend/` before starting the API.
-4. Start the API with `uvicorn app.main:app --reload` if you want local autoreload.
-5. Start a Celery worker for `scan`, `enrich`, and `maintenance` queues if you need scan, metadata, cover, or reconciliation jobs.
-6. Start Celery beat as a separate process if you want scheduled stalled-job reconciliation.
+The nginx service listens on `HTTP_PORT` (default `80`) and proxies
+`/api/*`, `/docs`, `/openapi.json`, `/health` to the `api` container;
+static uploads are served read-only from `/uploads/`.
 
-## Admin Bootstrap Behavior
+To opt into Meilisearch, add a `meilisearch` service and set
+`MEILI_URL=http://meilisearch:7700` in `.env` -- the adapter at
+`backend/app/services/meilisearch_service.py` activates automatically.
 
-There is no fixed default password anymore.
+## Option 2: Bare-metal (systemd)
 
-- `backend/entrypoint.sh:49-64` only creates the admin if `ADMIN_PASSWORD` is non-empty.
-- `backend/scripts/create_admin.py:21-37` follows the same rule for manual bootstrap.
-- Only `APP_ROLE=api` runs the bootstrap path at `backend/entrypoint.sh:85-88`.
-- If `ADMIN_PASSWORD` is empty, startup logs a skip message and continues.
+Templates live in `infra/deploy/systemd/`:
 
-## Current Constraints
+- `books-api.service`, `books-worker.service`, `books-beat.service`
+- `books.env.example` -- `EnvironmentFile` template
+- `README.md` -- step-by-step bootstrap
 
-- **No committed compose file:** The repo still does not include `docker-compose.yml`.
-- **Hostnames are hardcoded in readiness checks:** `postgres` and `redis` are embedded in `backend/entrypoint.sh:6-31`.
-- **Role split is operationally required for async features:** metadata sync, cover sync, and maintenance reconciliation depend on worker and beat processes in addition to the API role.
-- **Redis is checked but not actively used by the app layer:** `REDIS_URL` is required by config, but current runtime queue behavior is driven by `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND`.
-- **Legacy test script uses environment variables:** `backend/test_api.py:10-12` and `:147-153` read `ADMIN_USERNAME` and `ADMIN_PASSWORD` from the environment.
+Summary:
+
+```bash
+sudo useradd --system --home /var/lib/books --shell /usr/sbin/nologin books
+sudo mkdir -p /opt/books-manag-system /var/lib/books/{books,uploads} /etc/books
+# clone + venv install
+sudo cp infra/deploy/systemd/*.service /etc/systemd/system/
+sudo cp infra/deploy/systemd/books.env.example /etc/books/books.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now books-api books-worker books-beat
+```
+
+Front with an existing nginx or use `infra/docker/nginx/conf.d/api.conf`
+as a starting point (swap `upstream` target to `127.0.0.1:8000`).
+
+## Option 3: Local development
+
+```bash
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+# in other terminals:
+celery -A app.celery_app.celery_app worker -Q scan,enrich,maintenance
+celery -A app.celery_app.celery_app beat
+```
+
+For the frontend during dev:
+
+```bash
+cd frontend/admin-web && npm install && npm run dev     # :3000
+cd frontend/reader-web && npm install && npm run dev    # :3001
+```
+
+Both Next.js apps proxy `/api/*` to `NEXT_PUBLIC_API_BASE` (default
+`http://localhost:8000`), so CORS is not required locally.
+
+## APP_ROLE matrix
+
+`backend/entrypoint.sh` dispatches on `APP_ROLE`:
+
+| Role | Behavior |
+|---|---|
+| `api` | waits for PG+Redis, runs `alembic upgrade head`, admin bootstrap, `uvicorn` |
+| `worker` | starts Celery worker on `CELERY_QUEUES` (default `scan,enrich,maintenance`) |
+| `beat` | starts Celery beat for scheduled stalled-job reconciliation |
+
+## Admin bootstrap
+
+- `backend/entrypoint.sh` only creates the admin user when
+  `ADMIN_PASSWORD` is non-empty; empty logs a skip.
+- `backend/scripts/create_admin.py` does the same for manual runs.
+- Only the `api` role triggers bootstrap.
+
+## Observability endpoints
+
+- `GET /health` -- liveness
+- `GET /metrics` -- Prometheus scrape target (enabled by
+  `METRICS_ENABLED=true`, default true)
+- `LOG_JSON=true` -- switches stdout to JSON for log shippers.
+
+## Historical notes
+
+- Earlier revisions had no compose file; as of
+  `docker-compose.yml` at the repo root this is no longer the case.
+- `entrypoint.sh` still hardcodes `postgres` and `redis` as readiness
+  hostnames -- aligns with compose service names. For bare-metal put
+  entries in `/etc/hosts` or edit the script.

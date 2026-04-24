@@ -9,8 +9,10 @@ from app.db.base import get_db
 from app.models.book import Book
 from app.models.user import User
 from app.schemas.scanner import (
+    BookTaskEnqueuedResponse,
     ScanDirectoryRequest,
     ScanFileRequest,
+    ScanJobActionResponse,
     ScanJobCreatedResponse,
     ScanJobItemListResponse,
     ScanJobListResponse,
@@ -102,7 +104,7 @@ def get_scan_job_items(
     return ScanJobItemListResponse(items=items, total=total)
 
 
-@router.post("/jobs/{job_id}/retry-failed")
+@router.post("/jobs/{job_id}/retry-failed", response_model=ScanJobActionResponse)
 def retry_failed_scan_items(
     job_id: UUID,
     db: Session = Depends(get_db),
@@ -113,10 +115,10 @@ def retry_failed_scan_items(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan job not found")
     TaskDispatchService().enqueue_retry_failed_items(job_id)
-    return {"job_id": str(job_id), "status": "queued", "message": "Retry failed items queued"}
+    return ScanJobActionResponse(job_id=job_id, status="queued", message="Retry failed items queued")
 
 
-@router.post("/books/{book_id}/metadata-sync")
+@router.post("/books/{book_id}/metadata-sync", response_model=BookTaskEnqueuedResponse)
 def queue_metadata_sync(
     book_id: UUID,
     force: bool = Query(False),
@@ -128,15 +130,15 @@ def queue_metadata_sync(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
 
     task_id = TaskDispatchService().enqueue_metadata_sync(book_id, force=force)
-    return {
-        "book_id": str(book_id),
-        "status": "queued",
-        "task_id": task_id,
-        "message": "Metadata sync queued",
-    }
+    return BookTaskEnqueuedResponse(
+        book_id=book_id,
+        status="queued",
+        task_id=task_id,
+        message="Metadata sync queued",
+    )
 
 
-@router.post("/books/{book_id}/extract-cover")
+@router.post("/books/{book_id}/extract-cover", response_model=BookTaskEnqueuedResponse)
 def queue_cover_extract(
     book_id: UUID,
     prefer_remote: bool = Query(False),
@@ -160,9 +162,9 @@ def queue_cover_extract(
         source_url=metadata_cover_url,
         force=force,
     )
-    return {
-        "book_id": str(book_id),
-        "status": "queued",
-        "task_id": task_id,
-        "message": "Cover extraction queued",
-    }
+    return BookTaskEnqueuedResponse(
+        book_id=book_id,
+        status="queued",
+        task_id=task_id,
+        message="Cover extraction queued",
+    )

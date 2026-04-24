@@ -1,0 +1,14 @@
+{
+  "name": "books-desktop-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri 2 wrapper around frontend/reader-web.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.0.0"
+  }
+}

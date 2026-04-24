@@ -10,6 +10,7 @@ from app.db.base import get_db
 from app.models.book import Book, FileFormat
 from app.models.user import User
 from app.schemas.book import Book as BookSchema, BookCreate, BookList, BookUpdate
+from app.services.meilisearch_service import MeiliSearchService
 from app.services.search_service import BookSearchService
 
 router = APIRouter(prefix="/books", tags=["Books"])
@@ -89,6 +90,7 @@ def create_book(
         db.rollback()
         _raise_integrity_error(exc)
     db.refresh(book)
+    MeiliSearchService().upsert_book(book)
     return book
 
 
@@ -117,6 +119,7 @@ def update_book(
         db.rollback()
         _raise_integrity_error(exc)
     db.refresh(book)
+    MeiliSearchService().upsert_book(book)
     return book
 
 
@@ -135,3 +138,4 @@ def delete_book(
 
     db.delete(book)
     db.commit()
+    MeiliSearchService().delete_book(book_id)

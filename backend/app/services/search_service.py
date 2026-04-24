@@ -5,6 +5,7 @@ from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.orm import Query, Session
 
 from app.models.book import Book, Category, FileFormat, book_category
+from app.services.meilisearch_service import MeiliSearchService
 
 BookSort = Literal["relevance", "created_at", "updated_at", "title", "rating"]
 SortOrder = Literal["asc", "desc"]
@@ -14,8 +15,9 @@ class BookSearchService:
     SEARCH_CONFIG = "simple"
     TRIGRAM_THRESHOLD = 0.1
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, meili: MeiliSearchService | None = None):
         self.db = db
+        self.meili = meili or MeiliSearchService()
 
     def search_books(
         self,
@@ -44,7 +46,26 @@ class BookSearchService:
 
         rank_expr = None
         normalized_q = q.strip() if q else None
-        if normalized_q:
+
+        # When Meilisearch is configured and the user supplied a text query,
+        # use it as the candidate provider. PG still runs filters + ordering.
+        meili_ids: list[UUID] | None = None
+        if normalized_q and self.meili.is_enabled:
+            hits = self.meili.search(normalized_q, limit=max(page * page_size * 2, 200))
+            meili_ids = []
+            for h in hits:
+                raw = h.get("id")
+                if not raw:
+                    continue
+                try:
+                    meili_ids.append(UUID(str(raw)))
+                except (TypeError, ValueError):
+                    continue
+            if meili_ids:
+                query = query.filter(Book.id.in_(meili_ids))
+            else:
+                return [], 0
+        elif normalized_q:
             query, rank_expr = self._apply_text_search(query, normalized_q)
 
         total = query.count()

@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     DOUBAN_API_URL: str = "https://douban.uieee.com"
     GOOGLE_BOOKS_API_KEY: str = ""
 
+    # Phase-2 search backend (optional). When MEILI_URL is empty the
+    # application falls back to PostgreSQL FTS exclusively.
+    MEILI_URL: str = ""
+    MEILI_MASTER_KEY: str = ""
+
+    # Rate limiting (requests / minute / client IP). 0 disables.
+    RATE_LIMIT_PER_MINUTE: int = 0
+
+    # Caching. CACHE_TTL_SECONDS is 0 to disable by default.
+    CACHE_TTL_SECONDS: int = 0
+
+    # Observability
+    METRICS_ENABLED: bool = True
+    LOG_LEVEL: str = "INFO"
+    LOG_JSON: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = True

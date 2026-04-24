@@ -82,6 +82,23 @@ Source: `backend/app/api/notes.py:11-70`
 | PUT | `/books/{book_id}/notes/{note_id}` | User | `update_note` | Updates only a note owned by the current user. |
 | DELETE | `/books/{book_id}/notes/{note_id}` | User | `delete_note` | Deletes only a note owned by the current user. |
 
+## 8b. Annotations Router (`/api/v1/books/{book_id}`)
+
+Source: `backend/app/api/annotations.py`
+
+Independent `bookmarks` and `annotations` tables were introduced in migration `004`. The legacy `ReadingProgress.bookmarks/notes` JSON fields are no longer written.
+
+| Method | Path | Auth | Handler | Notes |
+|---|---|---|---|---|
+| GET | `/books/{book_id}/bookmarks` | User | `list_bookmarks` | Current user's bookmarks for this book. |
+| POST | `/books/{book_id}/bookmarks` | User | `create_bookmark` | Takes a locator, optional title and note. |
+| PUT | `/books/{book_id}/bookmarks/{bookmark_id}` | User | `update_bookmark` | Owner-scoped partial update. |
+| DELETE | `/books/{book_id}/bookmarks/{bookmark_id}` | User | `delete_bookmark` | Owner-scoped. |
+| GET | `/books/{book_id}/annotations` | User | `list_annotations` | Current user's highlights and margin notes. |
+| POST | `/books/{book_id}/annotations` | User | `create_annotation` | `locator_start` required, optional range end / highlight text / color. |
+| PUT | `/books/{book_id}/annotations/{annotation_id}` | User | `update_annotation` | Owner-scoped partial update. |
+| DELETE | `/books/{book_id}/annotations/{annotation_id}` | User | `delete_annotation` | Owner-scoped. |
+
 ## 9. Files Router (`/api/v1/files`)
 
 Source: `backend/app/api/files.py:15-181`

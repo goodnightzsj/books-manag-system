@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.book import Book, FileFormat, HashStatus, book_category
+from app.models.book_file import BookFile
 from app.models.note import BookNote
 from app.models.reading import ReadingProgress
 from app.models.scan_job import ScanJobItem
@@ -80,6 +81,14 @@ class BookIngestService:
             existing_book.indexed_at = datetime.utcnow()
             existing_book.updated_at = datetime.utcnow()
             self._apply_hash_decision(existing_book, hash_decision, clear_existing=True)
+            self._ensure_book_file(
+                book_id=existing_book.id,
+                file_path=file_path,
+                file_format=file_format,
+                file_size=file_size,
+                file_mtime=file_mtime,
+                hash_status=hash_decision.next_status,
+            )
             return BookUpsertResult(
                 book_id=existing_book.id,
                 action="updated",
@@ -105,6 +114,14 @@ class BookIngestService:
         )
         self.db.add(book)
         self.db.flush()
+        self._ensure_book_file(
+            book_id=book.id,
+            file_path=file_path,
+            file_format=file_format,
+            file_size=file_size,
+            file_mtime=file_mtime,
+            hash_status=hash_decision.next_status,
+        )
         return BookUpsertResult(
             book_id=book.id,
             action="created",
@@ -134,6 +151,7 @@ class BookIngestService:
             book.hash_status = HashStatus.DONE
             book.hash_error = None
             book.updated_at = datetime.utcnow()
+            self._mirror_hash_to_book_file(book, content_hash, algorithm)
             return book
 
         canonical = self._select_canonical_book([book, *duplicates])
@@ -201,6 +219,59 @@ class BookIngestService:
             return
         book.hash_status = decision.next_status
         book.hash_error = None
+
+    def _ensure_book_file(
+        self,
+        *,
+        book_id: UUID,
+        file_path: str,
+        file_format: str,
+        file_size: int,
+        file_mtime: datetime,
+        hash_status: HashStatus,
+    ) -> BookFile:
+        """Mirror the primary copy into the book_files decoupled table.
+
+        Additive: the legacy `books.file_path/file_size/...` columns stay
+        authoritative until every reader is migrated, so this call is
+        purely forward-compat bookkeeping.
+        """
+        existing = self.db.query(BookFile).filter(BookFile.file_path == file_path).first()
+        if existing:
+            existing.book_id = book_id
+            existing.file_format = file_format
+            existing.file_size = file_size
+            existing.file_mtime = file_mtime
+            existing.hash_status = hash_status
+            existing.updated_at = datetime.utcnow()
+            return existing
+
+        row = BookFile(
+            book_id=book_id,
+            file_path=file_path,
+            file_format=file_format,
+            file_size=file_size,
+            file_mtime=file_mtime,
+            hash_status=hash_status,
+            is_primary=True,
+            indexed_at=datetime.utcnow(),
+        )
+        self.db.add(row)
+        return row
+
+    def _mirror_hash_to_book_file(self, book: Book, content_hash: str, algorithm: str) -> None:
+        row = (
+            self.db.query(BookFile)
+            .filter(BookFile.book_id == book.id, BookFile.is_primary.is_(True))
+            .first()
+        )
+        if row is None:
+            return
+        row.content_hash = content_hash
+        row.hash_algorithm = algorithm
+        row.hash_status = HashStatus.DONE
+        row.hash_error = None
+        row.updated_at = datetime.utcnow()
 
     def _select_canonical_book(self, books: list[Book]) -> Book:
         return sorted(books, key=lambda book: (book.created_at or datetime.min, str(book.id)))[0]

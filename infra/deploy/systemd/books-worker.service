@@ -1,0 +1,18 @@
+[Unit]
+Description=Books Management System -- Celery Worker
+After=network.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=books
+Group=books
+WorkingDirectory=/opt/books-manag-system/backend
+EnvironmentFile=/etc/books/books.env
+Environment=APP_ROLE=worker
+ExecStart=/opt/books-manag-system/venv/bin/celery -A app.celery_app.celery_app worker -Q scan,enrich,maintenance --loglevel INFO
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
