@@ -29,10 +29,13 @@ export default function SearchPage() {
   return (
     <>
       <TopBar />
-      <div className="shell" style={{ paddingTop: 40, paddingBottom: 80 }}>
-        <div className="eyebrow">探索</div>
-        <h1 style={{ marginBottom: 18 }}>搜索书库</h1>
-        <form onSubmit={onSubmit} style={{ display: "flex", gap: 10, maxWidth: 600 }}>
+      <div className="shell" style={{ paddingTop: 44, paddingBottom: 96 }}>
+        <span className="eyebrow">探索</span>
+        <h1 style={{ marginBottom: 22 }}>搜索书库</h1>
+        <form
+          onSubmit={onSubmit}
+          style={{ display: "flex", gap: 10, maxWidth: 600 }}
+        >
           <input
             className="input"
             value={q}
@@ -44,7 +47,7 @@ export default function SearchPage() {
           </button>
         </form>
         {error && <div className="error" style={{ marginTop: 20 }}>{error}</div>}
-        <div style={{ marginTop: 32 }}>
+        <div style={{ marginTop: 36 }}>
           {loading ? (
             <div className="empty">搜索中…</div>
           ) : !touched ? (

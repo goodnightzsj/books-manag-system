@@ -1,0 +1,201 @@
+name: Android · Capacitor release
+
+# Builds the Capacitor Android shell wrapping frontend/reader-web.
+# Signs with secrets when available; otherwise falls back to debug APK.
+#
+# Required secrets for SIGNED release builds:
+#   ANDROID_KEYSTORE_BASE64
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build type (debug uses no keystore)"
+        required: true
+        default: "debug"
+        type: choice
+        options: [debug, release]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: Install reader-web deps
+        working-directory: frontend/reader-web
+        run: npm install --no-audit --no-fund
+
+      - name: Build reader-web
+        working-directory: frontend/reader-web
+        run: npm run build
+
+      # Capacitor expects a `www/` directory inside the shell. We copy the
+      # Next.js standalone output there before cap sync.
+      - name: Stage web bundle into shell
+        run: |
+          set -e
+          mkdir -p apps/mobile-shell/www
+          # Next.js standalone bundles a server.js + minimal node_modules; for
+          # a Capacitor static shell we ship the public/ + .next/static/ layer
+          # via the standalone export tree. Static export is sufficient.
+          cp -r frontend/reader-web/.next apps/mobile-shell/www/.next
+          [ -d frontend/reader-web/public ] && cp -r frontend/reader-web/public apps/mobile-shell/www/public || true
+          [ -f frontend/reader-web/.next/standalone/server.js ] && \
+            cp -r frontend/reader-web/.next/standalone/. apps/mobile-shell/www/ || true
+
+      - name: Install mobile shell deps
+        working-directory: apps/mobile-shell
+        run: npm install --no-audit --no-fund
+
+      - name: Add Android platform (first run)
+        working-directory: apps/mobile-shell
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor
+        working-directory: apps/mobile-shell
+        run: npx cap sync android
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile-shell/android/**/*.gradle*', 'apps/mobile-shell/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Detect keystore secret
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decode keystore
+        if: steps.keystore.outputs.present == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > apps/mobile-shell/android/app/release.keystore
+
+      - name: Configure signing
+        if: steps.keystore.outputs.present == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat >> apps/mobile-shell/android/gradle.properties <<EOF
+          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_PASSWORD=${KEYSTORE_PASSWORD}
+          RELEASE_KEY_ALIAS=${KEY_ALIAS}
+          RELEASE_KEY_PASSWORD=${KEY_PASSWORD}
+          EOF
+
+      - name: Patch build.gradle for release signing
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          python3 <<'EOF'
+          import re
+          from pathlib import Path
+          gradle = Path("apps/mobile-shell/android/app/build.gradle")
+          text = gradle.read_text()
+          if "signingConfigs" not in text:
+              signing_block = """
+              signingConfigs {
+                  release {
+                      if (project.hasProperty('RELEASE_STORE_FILE')) {
+                          storeFile file(RELEASE_STORE_FILE)
+                          storePassword RELEASE_STORE_PASSWORD
+                          keyAlias RELEASE_KEY_ALIAS
+                          keyPassword RELEASE_KEY_PASSWORD
+                      }
+                  }
+              }
+          """
+              text = re.sub(r"(android\s*\{\s*\n)", r"\1" + signing_block, text, count=1)
+          text = re.sub(
+              r"(release\s*\{\s*\n)",
+              r"\1            signingConfig signingConfigs.release\n",
+              text,
+              count=1,
+          )
+          gradle.write_text(text)
+          print("Patched apps/mobile-shell/android/app/build.gradle")
+          EOF
+
+      - name: Build APK
+        id: build
+        working-directory: apps/mobile-shell/android
+        run: |
+          if [ "${{ steps.keystore.outputs.present }}" = "true" ] && [ "${{ github.event.inputs.build_type }}" != "debug" ]; then
+            ./gradlew assembleRelease bundleRelease --no-daemon
+            echo "type=release" >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew assembleDebug --no-daemon
+            echo "type=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ steps.build.outputs.type }}
+          path: |
+            apps/mobile-shell/android/app/build/outputs/apk/${{ steps.build.outputs.type }}/*.apk
+            apps/mobile-shell/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Attach to unified Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Books Management System ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          files: |
+            apps/mobile-shell/android/app/build/outputs/apk/${{ steps.build.outputs.type }}/*.apk
+            apps/mobile-shell/android/app/build/outputs/bundle/release/*.aab

@@ -56,13 +56,17 @@ export function TxtReader({
     <div>
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11,
           fontFamily: "var(--font-sans)",
           color: "var(--ink-faint)",
-          marginBottom: 8,
+          marginBottom: 10,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          fontWeight: 500,
         }}
       >
-        行 {currentLine} / {lines.length}
+        行 <span className="numeric">{currentLine}</span> /{" "}
+        <span className="numeric">{lines.length}</span>
       </div>
       <pre
         ref={hostRef}
@@ -71,14 +75,15 @@ export function TxtReader({
           overflow: "auto",
           whiteSpace: "pre-wrap",
           background: "var(--bg-surface)",
-          padding: 28,
-          borderRadius: 14,
+          padding: "32px 36px",
+          borderRadius: "var(--radius-md)",
           border: "1px solid var(--rule)",
           boxShadow: "var(--shadow-sm)",
           fontFamily: "var(--font-serif)",
           fontSize: 17,
           lineHeight: 1.85,
           color: "var(--ink)",
+          margin: 0,
         }}
       >
         {lines.join("\n")}

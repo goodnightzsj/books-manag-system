@@ -14,10 +14,7 @@ export default function LibraryPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [r, a] = await Promise.all([
-          api.recent(),
-          api.search(""),
-        ]);
+        const [r, a] = await Promise.all([api.recent(), api.search("")]);
         setRecent(r.items);
         setAll(a.items);
       } catch (e) {
@@ -31,9 +28,9 @@ export default function LibraryPage() {
   return (
     <>
       <TopBar />
-      <div className="shell" style={{ paddingTop: 40, paddingBottom: 80 }}>
-        <div className="eyebrow">正在阅读</div>
-        <h1 style={{ marginBottom: 20 }}>继续你的故事</h1>
+      <div className="shell" style={{ paddingTop: 44, paddingBottom: 96 }}>
+        <span className="eyebrow">正在阅读</span>
+        <h1 style={{ marginBottom: 24 }}>继续你的故事</h1>
         {error && <div className="error">{error}</div>}
         {loading ? (
           <div className="empty">加载中…</div>
@@ -59,9 +56,17 @@ export default function LibraryPage() {
           </div>
         )}
 
-        <div style={{ marginTop: 56 }}>
-          <div className="eyebrow">书库</div>
-          <h2 style={{ marginBottom: 20 }}>最新入库</h2>
+        <div style={{ marginTop: 64 }}>
+          <span className="eyebrow">书库</span>
+          <h2
+            style={{
+              marginBottom: 24,
+              borderBottom: "1px solid var(--rule)",
+              paddingBottom: 14,
+            }}
+          >
+            最新入库
+          </h2>
           {all.length === 0 ? (
             <div className="empty">书库为空。</div>
           ) : (

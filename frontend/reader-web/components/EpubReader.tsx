@@ -43,12 +43,36 @@ export const EpubReader = forwardRef<
     rendition.themes.default({
       body: {
         "font-family":
-          "'Noto Serif SC', 'Source Han Serif SC', Georgia, serif !important",
-        "line-height": "1.75 !important",
+          "'Source Serif 4', 'Source Serif Pro', 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif !important",
+        "font-size": "17px !important",
+        "line-height": "1.85 !important",
         color: "var(--ink) !important",
-        padding: "0 12px !important",
+        padding: "0 16px !important",
       },
-      p: { margin: "0 0 1em 0 !important" },
+      p: {
+        margin: "0 0 0.9em 0 !important",
+        "text-align": "justify !important",
+        "text-indent": "1.5em !important",
+      },
+      "p:first-of-type": {
+        "text-indent": "0 !important",
+      },
+      h1: {
+        "font-weight": "600 !important",
+        "letter-spacing": "-0.012em !important",
+        "margin-top": "1.4em !important",
+      },
+      h2: {
+        "font-weight": "600 !important",
+        "letter-spacing": "-0.008em !important",
+        "margin-top": "1.2em !important",
+      },
+      blockquote: {
+        "border-left": "2px solid var(--accent) !important",
+        "padding-left": "1em !important",
+        "font-style": "italic !important",
+        color: "var(--ink-soft) !important",
+      },
     });
     renditionRef.current = rendition;
     rendition.display(initialCfi ?? undefined);
@@ -82,18 +106,33 @@ export const EpubReader = forwardRef<
         ref={hostRef}
         style={{
           background: "var(--bg-surface)",
-          borderRadius: 14,
+          borderRadius: "var(--radius-md)",
           border: "1px solid var(--rule)",
           boxShadow: "var(--shadow-sm)",
-          padding: 16,
+          padding: 20,
         }}
       />
-      <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 14 }}>
-        <button className="btn" onClick={() => renditionRef.current?.prev()}>
-          ← 上一页
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 16,
+          marginTop: 18,
+        }}
+      >
+        <button
+          className="btn icon-square"
+          aria-label="上一页"
+          onClick={() => renditionRef.current?.prev()}
+        >
+          ←
         </button>
-        <button className="btn" onClick={() => renditionRef.current?.next()}>
-          下一页 →
+        <button
+          className="btn icon-square"
+          aria-label="下一页"
+          onClick={() => renditionRef.current?.next()}
+        >
+          →
         </button>
       </div>
     </div>

@@ -1,40 +1,280 @@
+/* ---------------------------------------------------------------
+ * Editorial Library Archive — admin shell
+ * Tokens shared with reader-web (see frontend/DESIGN.md).
+ * Admin is the cooler / denser sibling: smaller controls, cooler paper.
+ * --------------------------------------------------------------- */
+
+:root {
+  --ink: #18181B;
+  --ink-soft: #57534E;
+  --ink-faint: #78716C;
+
+  --paper: #FBF7EE;
+  --paper-cool: #F5F4EE;
+  --surface: #FFFFFF;
+  --muted: #EFEBDF;
+  --rule: #E7E2D6;
+
+  --accent: #B4502A;
+  --accent-soft: #F2DCCC;
+  --accent-deep: #8F3E1F;
+
+  --ok: #2F6B4A;
+  --ok-soft: #DDEBE0;
+  --warn: #B8862D;
+  --warn-soft: #F3E5C2;
+  --danger: #9B2C2C;
+  --danger-soft: #F2D6D6;
+
+  --font-sans: Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-serif: "Source Serif 4", "Source Serif Pro", "Noto Serif SC",
+    "Source Han Serif SC", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, "Liberation Mono", monospace;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
+
 html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: #f6f7fb;
-  color: #111827;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Noto Sans SC",
-    Helvetica, Arial, sans-serif;
+  background: var(--paper-cool);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv11", "ss01";
+  -moz-osx-font-smoothing: grayscale;
+  /* Inter stylistic sets: cv11 = single-storey a, ss01 = curved geometric,
+     cv09 = open digit shapes; combined gives a calmer editorial feel. */
+  font-feature-settings: "cv11", "ss01", "cv09";
 }
 
 a { color: inherit; }
 
+/* ---- Page header ---- */
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
 }
 .page-header h1 {
   margin: 0;
-  font-size: 22px;
+  font-family: var(--font-serif);
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
+  color: var(--ink);
 }
 .page-header .subtitle {
-  color: #6b7280;
-  font-size: 13px;
-  margin-top: 2px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  margin-top: 4px;
+  letter-spacing: 0.01em;
 }
 
+/* ---- Editorial type utilities ---- */
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.numeric {
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum", "lnum", "cv11";
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.serif { font-family: var(--font-serif); }
+.hairline { height: 1px; background: var(--rule); border: 0; }
+
+/* ---- Stat grid for dashboard ---- */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
+
+/* ---- Brand lockup (used in sider + login) ---- */
+.brand-lockup {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-serif);
+  color: var(--ink-inverse, #F5F4EE);
+}
+.brand-lockup .word {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-lockup .word::after {
+  content: ".";
+  color: var(--accent);
+  margin-left: 1px;
+}
+.brand-lockup .sub {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 244, 238, 0.55);
+}
+
+/* ---- Ant Design overrides: kill default chrome that feels generic ---- */
+.ant-layout-sider .ant-layout-sider-trigger {
+  background: var(--paper-cool) !important;
+  color: var(--ink-soft) !important;
+  border-top: 1px solid #2a2823;
+}
+.ant-layout-sider-dark .ant-layout-sider-trigger {
+  background: #161512 !important;
+  color: rgba(245, 244, 238, 0.6) !important;
+}
+
+/* Tables: hairline rows, no zebra. */
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--rule);
+}
+.ant-table-wrapper .ant-table-thead > tr > th {
+  border-bottom: 1px solid var(--rule);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.ant-table-wrapper .ant-table-thead > tr > th::before {
+  display: none !important; /* kill the AntD vertical column divider */
+}
+
+/* Cards: soft surface, hairline border, no drop shadow. */
+.ant-card {
+  border: 1px solid var(--rule) !important;
+  box-shadow: none !important;
+}
+.ant-card .ant-card-head {
+  border-bottom: 1px solid var(--rule) !important;
+  padding-block: 14px;
+}
+.ant-card .ant-card-head-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Buttons: low-saturation borders, solid hover, no gradient. */
+.ant-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+.ant-btn-primary:not(:disabled):hover {
+  background: var(--accent-deep) !important;
+  border-color: var(--accent-deep) !important;
+}
+.ant-btn-default {
+  background: var(--surface);
+}
+.ant-btn-default:not(:disabled):hover {
+  border-color: var(--ink) !important;
+  color: var(--ink) !important;
+  background: var(--muted) !important;
+}
+
+/* Inputs: 2px focus outline using accent (not inset shadow halo). */
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  outline: 2px solid rgba(180, 80, 42, 0.35) !important;
+  outline-offset: 1px;
+  border-color: var(--accent) !important;
+}
+
+/* Tags: archive feel. */
+.ant-tag {
+  font-weight: 500;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  padding: 0 8px;
+  line-height: 20px;
+  border: 1px solid transparent;
+}
+.tag-ok      { color: var(--ok);     background: var(--ok-soft);     border-color: var(--ok-soft); }
+.tag-warn    { color: var(--warn);   background: var(--warn-soft);   border-color: var(--warn-soft); }
+.tag-danger  { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-soft); }
+.tag-quiet   { color: var(--ink-soft); background: var(--muted); border-color: var(--rule); }
+.tag-accent  { color: var(--accent-deep); background: var(--accent-soft); border-color: var(--accent-soft); }
+
+/* List rows: hairline divider only. */
+.ant-list-item { border-bottom: 1px solid var(--rule) !important; }
+.ant-list-item:last-child { border-bottom: 0 !important; }
+
+/* Dropdown menu: tighter, less floaty. */
+.ant-dropdown-menu {
+  border: 1px solid var(--rule) !important;
+  box-shadow: 0 8px 24px rgba(24, 24, 27, 0.06) !important;
+  padding: 6px !important;
+}
+.ant-dropdown-menu-item {
+  border-radius: 6px !important;
+}
+
+/* Empty state — quiet illustration. */
+.empty-state {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 56px 24px;
+  color: var(--ink-faint);
+  text-align: center;
+}
+.empty-state svg { color: var(--ink-faint); opacity: 0.7; }
+.empty-state .label {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.empty-state .hint { font-size: 12px; color: var(--ink-faint); }
+
+/* Subtle row interaction for "evaluate top" lists. */
+.list-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  border-left: 1px solid transparent;
+  padding-left: 12px;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.list-row:last-child { border-bottom: 0; }
+.list-row:hover {
+  border-left-color: var(--accent);
+  transform: translateX(1px);
+}
+
+/* Hide AntD's default focus shadows that look like AI halos. */
+.ant-btn:focus-visible,
+.ant-input:focus-visible {
+  outline: 2px solid rgba(180, 80, 42, 0.45) !important;
+  outline-offset: 2px;
+}
+
+/* Selection color — terracotta wash, not browser-default blue. */
+::selection { background: var(--accent-soft); color: var(--ink); }

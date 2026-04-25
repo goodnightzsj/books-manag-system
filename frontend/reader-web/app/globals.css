@@ -1,40 +1,69 @@
+/* ---------------------------------------------------------------
+ * Editorial Library Archive — reader-web
+ * Shares the token vocabulary with admin-web (see frontend/DESIGN.md).
+ * Reader is the warmer, more spacious sibling: paper background,
+ * serif body, generous line-height for prose.
+ * --------------------------------------------------------------- */
+
 :root {
-  --bg-paper: #faf6ef;
-  --bg-surface: #ffffff;
-  --bg-muted: #f2ede3;
-  --ink: #1b1611;
-  --ink-soft: #5b5348;
-  --ink-faint: #8a8276;
-  --rule: #e5dfd3;
-  --accent: #b34a2c;
-  --accent-soft: #f3dccf;
-  --shadow-sm: 0 1px 2px rgba(27, 22, 17, 0.05), 0 1px 0 rgba(27, 22, 17, 0.03);
-  --shadow-md: 0 12px 28px rgba(27, 22, 17, 0.08), 0 2px 6px rgba(27, 22, 17, 0.05);
-  --shadow-lg: 0 30px 80px rgba(27, 22, 17, 0.10);
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --font-serif:
-    "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STZhongsong",
-    Georgia, "Times New Roman", serif;
-  --font-sans:
-    Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Helvetica, sans-serif;
+  /* Ink */
+  --ink: #18181B;
+  --ink-soft: #57534E;
+  --ink-faint: #78716C;
+
+  /* Paper / surfaces */
+  --bg-paper: #FBF7EE;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #EFEBDF;
+  --rule: #E7E2D6;
+
+  /* Accent — terracotta, shared with admin */
+  --accent: #B4502A;
+  --accent-soft: #F2DCCC;
+  --accent-deep: #8F3E1F;
+
+  /* Semantic */
+  --ok: #2F6B4A;
+  --warn: #B8862D;
+  --danger: #9B2C2C;
+
+  /* Shadows kept conservative — paper, not glass */
+  --shadow-sm: 0 1px 0 rgba(24, 24, 27, 0.04);
+  --shadow-md: 0 6px 16px rgba(24, 24, 27, 0.06);
+  --shadow-lg: 0 20px 50px rgba(24, 24, 27, 0.10);
+
+  /* Radii — restrained */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Type */
+  --font-serif: "Source Serif 4", "Source Serif Pro", "Noto Serif SC",
+    "Source Han Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
+  --font-sans: Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Helvetica, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-paper: #1b1a17;
+    --ink: #ECE7DA;
+    --ink-soft: #BFB7A6;
+    --ink-faint: #857F70;
+    --bg-paper: #1B1A17;
     --bg-surface: #242320;
-    --bg-muted: #2d2b27;
-    --ink: #e9e3d4;
-    --ink-soft: #b9b3a5;
-    --ink-faint: #7d7669;
-    --rule: #35322d;
-    --accent: #e4703f;
-    --accent-soft: #43291f;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.55);
-    --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.65);
+    --bg-muted: #2D2B27;
+    --rule: #35322D;
+    --accent: #D9663F;
+    --accent-soft: #432A20;
+    --accent-deep: #B4502A;
+    --ok: #6FAE89;
+    --warn: #D4A958;
+    --danger: #D17474;
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -56,11 +85,9 @@ a {
   text-decoration: none;
   transition: opacity 160ms ease;
 }
-a:hover { opacity: 0.75; }
+a:hover { opacity: 0.78; }
 
-button, input, textarea, select {
-  font-family: inherit;
-}
+button, input, textarea, select { font-family: inherit; }
 
 /* ---- Layout shell ---- */
 .shell {
@@ -77,50 +104,93 @@ button, input, textarea, select {
   align-items: center;
   gap: 24px;
   padding: 14px 28px;
-  background: rgba(250, 246, 239, 0.85);
-  backdrop-filter: saturate(1.2) blur(10px);
+  background: rgba(251, 247, 238, 0.92);
+  backdrop-filter: saturate(1.05) blur(6px);
   border-bottom: 1px solid var(--rule);
 }
 @media (prefers-color-scheme: dark) {
-  .topbar { background: rgba(27, 26, 23, 0.85); }
+  .topbar { background: rgba(27, 26, 23, 0.92); }
 }
 .topbar .brand {
   font-family: var(--font-serif);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-size: 18px;
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: baseline;
+}
+.topbar .brand .dot {
+  color: var(--accent);
+  margin-left: 1px;
 }
 .topbar nav {
   display: flex;
-  gap: 18px;
+  gap: 4px;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
 }
 .topbar nav a {
   color: var(--ink-soft);
-  padding: 6px 10px;
-  border-radius: 999px;
-  transition: background 160ms ease;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 160ms ease, color 160ms ease;
+  letter-spacing: 0.02em;
 }
-.topbar nav a:hover,
+.topbar nav a:hover {
+  color: var(--ink);
+  background: var(--bg-muted);
+}
 .topbar nav a.active {
   color: var(--ink);
   background: var(--bg-muted);
+  border-color: var(--rule);
 }
 .topbar .spacer { flex: 1; }
 
 /* ---- Headings ---- */
 .eyebrow {
+  display: inline-block;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-h1, h2, h3 { letter-spacing: -0.01em; color: var(--ink); }
-h1 { font-size: 36px; margin: 8px 0 14px; }
-h2 { font-size: 24px; margin: 24px 0 12px; }
-h3 { font-size: 18px; margin: 18px 0 10px; }
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  font-feature-settings: "kern", "liga";
+}
+h1 {
+  font-size: 38px;
+  margin: 8px 0 18px;
+  font-weight: 600;
+  line-height: 1.1;
+  position: relative;
+  padding-left: 16px;
+}
+/* Decorative left rule — like a printed running head. */
+h1::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 12px;
+  width: 1px;
+  background: var(--accent);
+}
+h2 { font-size: 24px; margin: 24px 0 12px; font-weight: 600; }
+h3 { font-size: 18px; margin: 18px 0 10px; font-weight: 600; }
+
+/* Tabular numerics inside headings (rare but keeps "vol.01" tidy). */
+h1 .numeric, h2 .numeric, h3 .numeric {
+  font-feature-settings: "tnum", "lnum";
+  font-variant-numeric: tabular-nums lining-nums;
+}
 
 /* ---- Surfaces ---- */
 .card {
@@ -135,22 +205,25 @@ h3 { font-size: 18px; margin: 18px 0 10px; }
 .book-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
+  gap: 24px;
 }
 .book-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   background: var(--bg-surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: transform 220ms ease, box-shadow 220ms ease;
+  /* No translateY bouncing — just a calm border darken + 1px lift. */
+  transition: transform 200ms ease, border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 .book-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  border-color: var(--ink);
+  box-shadow: var(--shadow-sm);
 }
+
 .book-cover {
   aspect-ratio: 2 / 3;
   background-size: cover;
@@ -158,31 +231,45 @@ h3 { font-size: 18px; margin: 18px 0 10px; }
   position: relative;
   display: flex;
   align-items: flex-end;
-  padding: 12px;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  background-color: #4d3f30;
-  background-image: linear-gradient(135deg, #5c4a37 0%, #2d241b 100%);
+  padding: 14px;
+  color: #F4EFE2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  /* Default cover: deep ink with a faint paper grain in radial form,
+     then a hairline bottom rule for the spine effect. */
+  background-color: #1B1A17;
+  background-image:
+    radial-gradient(
+      circle at 30% 20%,
+      rgba(180, 80, 42, 0.10) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 80% 80%,
+      rgba(245, 244, 238, 0.06) 0%,
+      transparent 45%
+    ),
+    linear-gradient(180deg, #25231F 0%, #18181B 100%);
 }
-.book-cover .rating {
+.book-cover::after {
+  content: "";
   position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-family: var(--font-sans);
-  font-size: 11px;
+  left: 14px;
+  right: 14px;
+  bottom: 10px;
+  height: 1px;
+  background: rgba(244, 239, 226, 0.18);
 }
+
 .book-meta {
-  padding: 0 14px 14px;
+  padding: 12px 14px 16px;
 }
 .book-meta .title {
+  font-family: var(--font-serif);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 15.5px;
   line-height: 1.4;
   color: var(--ink);
+  font-feature-settings: "kern", "liga";
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -190,21 +277,31 @@ h3 { font-size: 18px; margin: 18px 0 10px; }
 }
 .book-meta .author {
   font-family: var(--font-sans);
-  color: var(--ink-soft);
-  font-size: 12px;
+  color: var(--ink-faint);
+  font-size: 11.5px;
   margin-top: 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.book-meta .rating {
+  font-family: var(--font-serif);
+  font-feature-settings: "tnum", "lnum";
+  color: var(--accent);
+  font-size: 13px;
+  margin-top: 8px;
+  letter-spacing: 0.01em;
 }
 .book-meta .progress {
   font-family: var(--font-sans);
   font-size: 11px;
   color: var(--ink-faint);
-  margin-top: 6px;
+  margin-top: 8px;
+  letter-spacing: 0.04em;
 }
 .progress-rail {
   margin-top: 6px;
-  height: 3px;
+  height: 2px;
   background: var(--bg-muted);
-  border-radius: 999px;
   overflow: hidden;
 }
 .progress-rail > span {
@@ -218,49 +315,71 @@ h3 { font-size: 18px; margin: 18px 0 10px; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px;
-  border-radius: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--rule);
   background: var(--bg-surface);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: border-color 150ms ease, background 150ms ease,
+    color 150ms ease;
 }
 .btn:hover {
-  border-color: var(--ink-faint);
+  border-color: var(--ink);
   background: var(--bg-muted);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: #FFFFFF;
 }
-.btn.primary:hover { filter: brightness(1.05); }
+.btn.primary:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
 .btn.ghost { background: transparent; border-color: transparent; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.ghost:hover { border-color: var(--rule); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* Icon-square button — used in PDF / EPUB pagination. */
+.btn.icon-square {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* ---- Form controls ---- */
 .input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 9px 13px;
   background: var(--bg-surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--ink);
+  font-family: var(--font-serif);
   font-size: 15px;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .input:focus {
-  outline: none;
+  outline: 2px solid rgba(180, 80, 42, 0.35);
+  outline-offset: 1px;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .empty {
   text-align: center;
   padding: 60px 20px;
   color: var(--ink-faint);
+  font-family: var(--font-serif);
   font-style: italic;
 }
 
@@ -269,36 +388,63 @@ h3 { font-size: 18px; margin: 18px 0 10px; }
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(250, 246, 239, 0.88);
-  backdrop-filter: saturate(1.2) blur(8px);
+  background: rgba(251, 247, 238, 0.95);
+  backdrop-filter: saturate(1.05) blur(6px);
   border-bottom: 1px solid var(--rule);
-  padding: 10px 24px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 @media (prefers-color-scheme: dark) {
-  .reader-chrome { background: rgba(27, 26, 23, 0.88); }
+  .reader-chrome { background: rgba(27, 26, 23, 0.95); }
 }
 .reader-stage {
   max-width: 860px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px 24px 64px;
 }
-.reader-stage.pdf {
-  max-width: 960px;
+.reader-stage.pdf { max-width: 960px; }
+
+/* ---- Segmented control (drawer tabs) ---- */
+.segmented {
+  display: inline-flex;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 2px;
+}
+.segmented button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button.active {
+  background: var(--bg-surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.06);
 }
 
 /* ---- Misc ---- */
 .error {
-  background: #ffeae1;
-  color: #8a2b11;
-  border: 1px solid #f3c4b0;
-  border-radius: 10px;
+  background: var(--bg-muted);
+  color: var(--danger);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-md);
   padding: 10px 14px;
   font-family: var(--font-sans);
   font-size: 13px;
 }
-@media (prefers-color-scheme: dark) {
-  .error { background: #3a1b11; color: #f4b9a3; border-color: #5a2a1b; }
-}
+
+::selection { background: var(--accent-soft); color: var(--ink); }

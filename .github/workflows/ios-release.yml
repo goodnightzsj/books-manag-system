@@ -1,0 +1,226 @@
+name: iOS · Capacitor release
+
+# Builds the Capacitor iOS shell wrapping frontend/reader-web.
+# When all Apple Developer secrets are present, signs and exports an
+# .ipa for App Store upload. Otherwise falls back to an unsigned
+# Simulator .app.tar.gz.
+#
+# Required secrets for SIGNED builds (all must be present):
+#   IOS_P12_BASE64
+#   IOS_P12_PASSWORD
+#   IOS_PROVISIONING_PROFILE_BASE64
+#   IOS_PROVISIONING_PROFILE_NAME
+#   APPLE_TEAM_ID
+#   IOS_KEYCHAIN_PASSWORD
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "latest-stable"
+
+      - name: Install CocoaPods
+        run: gem install cocoapods
+
+      - name: Install reader-web deps
+        working-directory: frontend/reader-web
+        run: npm install --no-audit --no-fund
+
+      - name: Build reader-web
+        working-directory: frontend/reader-web
+        run: npm run build
+
+      - name: Stage web bundle into shell
+        run: |
+          set -e
+          mkdir -p apps/mobile-shell/www
+          cp -r frontend/reader-web/.next apps/mobile-shell/www/.next
+          [ -d frontend/reader-web/public ] && cp -r frontend/reader-web/public apps/mobile-shell/www/public || true
+          [ -f frontend/reader-web/.next/standalone/server.js ] && \
+            cp -r frontend/reader-web/.next/standalone/. apps/mobile-shell/www/ || true
+
+      - name: Install shell deps
+        working-directory: apps/mobile-shell
+        run: npm install --no-audit --no-fund
+
+      - name: Add iOS platform (first run)
+        working-directory: apps/mobile-shell
+        run: |
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+
+      - name: Sync Capacitor
+        working-directory: apps/mobile-shell
+        run: npx cap sync ios
+
+      - name: Install CocoaPods deps
+        working-directory: apps/mobile-shell/ios/App
+        run: pod install --repo-update
+
+      - name: Detect Apple signing secrets
+        id: secrets
+        env:
+          P12_B64: ${{ secrets.IOS_P12_BASE64 }}
+          PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$P12_B64" ] && [ -n "$PROFILE_B64" ] && [ -n "$TEAM_ID" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---- SIGNED PATH ----
+      - name: Import signing certificate
+        if: steps.secrets.outputs.signed == 'true'
+        env:
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/cert.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo "$IOS_P12_BASE64" | base64 -d > "$CERT_PATH"
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Install provisioning profile
+        if: steps.secrets.outputs.signed == 'true'
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: Build signed .ipa
+        if: steps.secrets.outputs.signed == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+        working-directory: apps/mobile-shell/ios/App
+        run: |
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.books.reader</key>
+              <string>${IOS_PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/App.xcarchive \
+            archive
+
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+
+      # ---- UNSIGNED FALLBACK (Simulator) ----
+      - name: Build unsigned simulator .app
+        if: steps.secrets.outputs.signed != 'true'
+        working-directory: apps/mobile-shell/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            -sdk iphonesimulator \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build
+
+      - name: Pack simulator .app for upload
+        if: steps.secrets.outputs.signed != 'true'
+        working-directory: apps/mobile-shell/ios/App/build/Build/Products/Release-iphonesimulator
+        run: |
+          tar -czf App-simulator.app.tar.gz App.app
+          mkdir -p ../../../../release
+          cp App-simulator.app.tar.gz ../../../../release/
+
+      # ---- UPLOAD ----
+      - name: Upload signed .ipa
+        if: steps.secrets.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: apps/mobile-shell/ios/App/build/ipa/*.ipa
+          retention-days: 30
+
+      - name: Upload simulator .app
+        if: steps.secrets.outputs.signed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: apps/mobile-shell/ios/App/release/App-simulator.app.tar.gz
+          retention-days: 30
+
+      - name: Attach to unified Release (signed)
+        if: github.ref_type == 'tag' && steps.secrets.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Books Management System ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          files: apps/mobile-shell/ios/App/build/ipa/*.ipa
+
+      - name: Attach to unified Release (simulator)
+        if: github.ref_type == 'tag' && steps.secrets.outputs.signed != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Books Management System ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          files: apps/mobile-shell/ios/App/release/App-simulator.app.tar.gz

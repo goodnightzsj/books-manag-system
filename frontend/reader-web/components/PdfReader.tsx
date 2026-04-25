@@ -53,26 +53,56 @@ export function PdfReader({
 
   return (
     <div style={{ display: "grid", gap: 18, justifyItems: "center" }}>
-      <div className="reader-chrome" style={{ position: "relative", borderRadius: 12, border: "1px solid var(--rule)" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "8px 12px",
+          background: "var(--bg-surface)",
+          border: "1px solid var(--rule)",
+          borderRadius: "var(--radius-md)",
+        }}
+      >
         <button
-          className="btn"
+          className="btn icon-square"
+          aria-label="上一页"
           disabled={page <= 1}
           onClick={() => setPage((p) => Math.max(1, p - 1))}
         >
-          ← 上一页
+          ←
         </button>
-        <span style={{ fontFamily: "var(--font-sans)", color: "var(--ink-soft)" }}>
+        <span
+          className="numeric"
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontFeatureSettings: "'tnum', 'lnum'",
+            color: "var(--ink-soft)",
+            fontSize: 13,
+            minWidth: 64,
+            textAlign: "center",
+            letterSpacing: "0.04em",
+          }}
+        >
           {page} / {numPages || "?"}
         </span>
         <button
-          className="btn"
+          className="btn icon-square"
+          aria-label="下一页"
           disabled={page >= numPages}
           onClick={() => setPage((p) => Math.min(numPages, p + 1))}
         >
-          下一页 →
+          →
         </button>
       </div>
-      <div style={{ boxShadow: "var(--shadow-md)", borderRadius: 6, background: "#fff" }}>
+      <div
+        style={{
+          boxShadow: "var(--shadow-md)",
+          borderRadius: 4,
+          background: "#fff",
+          border: "1px solid var(--rule)",
+        }}
+      >
         <Document
           file={fileUrl}
           onLoadSuccess={(doc) => setNumPages(doc.numPages)}

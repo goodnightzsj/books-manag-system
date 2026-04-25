@@ -1,35 +1,55 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1.7
+# Multi-stage hardened image. The builder layer compiles wheels with build
+# tools; the runtime layer only carries libpq5 / libmagic1 / pg_isready and
+# the resolved Python deps, then drops to a non-root user.
 
-# Use faster mirror for apt (optional, for Chinese users)
-# RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources
+FROM python:3.11-slim AS builder
+WORKDIR /build
 
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    libmagic1 \
-    postgresql-client \
-    redis-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
-# Copy application code
-COPY . .
 
-# Create directories for books and uploads
-RUN mkdir -p /app/books /app/uploads
+FROM python:3.11-slim
+WORKDIR /app
 
-# Copy and set permissions for entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+ARG APP_USER=books
+ARG APP_UID=1000
+ARG APP_GID=1000
 
-# Expose port
+# Runtime-only system deps. libpq5 -> SQLAlchemy psycopg2; libmagic1 ->
+# python-magic; postgresql-client -> entrypoint.sh pg_isready.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libmagic1 \
+    postgresql-client \
+    tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid ${APP_GID} ${APP_USER} \
+    && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --shell /usr/sbin/nologin ${APP_USER}
+
+COPY --from=builder /wheels /wheels
+COPY requirements.txt .
+RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels /root/.cache
+
+COPY --chown=${APP_USER}:${APP_USER} . .
+RUN chmod +x /app/entrypoint.sh \
+    && mkdir -p /app/books /app/uploads \
+    && chown -R ${APP_USER}:${APP_USER} /app
+
+USER ${APP_USER}
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
 EXPOSE 8000
 
-# Use entrypoint script
-ENTRYPOINT ["/app/entrypoint.sh"]
+# tini reaps zombie processes (Celery workers spawn many short-lived children).
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]

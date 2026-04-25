@@ -108,17 +108,50 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  admin-web:
+    build:
+      context: ./frontend/admin-web
+      dockerfile: Dockerfile
+    container_name: books-admin-web
+    environment:
+      NEXT_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://api:8000}
+    ports:
+      - "${ADMIN_WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  reader-web:
+    build:
+      context: ./frontend/reader-web
+      dockerfile: Dockerfile
+    container_name: books-reader-web
+    environment:
+      NEXT_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://api:8000}
+    ports:
+      - "${READER_WEB_PORT:-3001}:3001"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     container_name: books-nginx
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./infra/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infra/docker/nginx/certbot-www:/var/www/certbot
+      # certbot-issued tree mounted into the path api.conf points at.
+      # Empty on first boot -- use bootstrap.conf.example to issue certs.
+      - ./infra/docker/nginx/certs/live:/etc/nginx/certs:ro
       - ./uploads:/srv/uploads:ro
     depends_on:
       - api
+      - admin-web
+      - reader-web
     restart: unless-stopped
 
 volumes:

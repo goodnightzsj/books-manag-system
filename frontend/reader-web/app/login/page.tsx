@@ -32,25 +32,53 @@ export default function LoginPage() {
         display: "grid",
         placeItems: "center",
         padding: 24,
-        background:
-          "radial-gradient(900px 500px at 15% 20%, rgba(179,74,44,0.12), transparent 55%), radial-gradient(800px 400px at 90% 80%, rgba(120,80,40,0.10), transparent 50%), var(--bg-paper)",
+        background: "var(--bg-paper)",
       }}
     >
       <div
-        className="card"
         style={{
-          width: 420,
-          boxShadow: "var(--shadow-lg)",
-          padding: "36px 32px",
+          width: "100%",
+          maxWidth: 420,
+          background: "var(--bg-surface)",
+          border: "1px solid var(--rule)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-md)",
+          padding: "40px 36px 32px",
         }}
       >
-        <div className="eyebrow">登录</div>
-        <h1 style={{ marginTop: 4, marginBottom: 4 }}>回到你的书房</h1>
-        <p style={{ color: "var(--ink-soft)", fontFamily: "var(--font-sans)", fontSize: 13 }}>
+        <span className="eyebrow">登录</span>
+        <h1
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 32,
+            fontWeight: 600,
+            letterSpacing: "-0.012em",
+            margin: "10px 0 6px",
+            paddingLeft: 0,
+            color: "var(--ink)",
+            lineHeight: 1.15,
+          }}
+        >
+          回到你的书房
+        </h1>
+        <p
+          style={{
+            color: "var(--ink-soft)",
+            fontFamily: "var(--font-serif)",
+            fontSize: 15,
+            fontStyle: "italic",
+            margin: 0,
+          }}
+        >
           使用账号密码继续阅读。
         </p>
-        {error && <div className="error" style={{ margin: "12px 0" }}>{error}</div>}
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14, marginTop: 18 }}>
+
+        {error && <div className="error" style={{ margin: "16px 0" }}>{error}</div>}
+
+        <form
+          onSubmit={onSubmit}
+          style={{ display: "grid", gap: 14, marginTop: 24 }}
+        >
           <label style={{ display: "grid", gap: 6 }}>
             <span className="eyebrow">用户名</span>
             <input
@@ -76,11 +104,38 @@ export default function LoginPage() {
             type="submit"
             disabled={busy}
             className="btn primary"
-            style={{ justifyContent: "center", padding: "12px 18px", marginTop: 8 }}
+            style={{
+              justifyContent: "center",
+              padding: "12px 18px",
+              marginTop: 8,
+              fontSize: 14,
+            }}
           >
             {busy ? "登录中…" : "进入书架"}
           </button>
         </form>
+
+        <hr
+          style={{
+            border: 0,
+            borderTop: "1px solid var(--rule)",
+            margin: "28px 0 14px",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontFamily: "var(--font-sans)",
+            fontSize: 11,
+            color: "var(--ink-faint)",
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span>books<span style={{ color: "var(--accent)" }}>.</span></span>
+          <span>reader edition</span>
+        </div>
       </div>
     </div>
   );

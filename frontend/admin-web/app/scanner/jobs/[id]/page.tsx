@@ -7,7 +7,6 @@ import {
   Progress,
   Space,
   Table,
-  Tag,
   Typography,
   message,
 } from "antd";
@@ -26,13 +25,22 @@ type Item = {
   error_message?: string | null;
 };
 
-const itemTagColor: Record<string, string> = {
-  created: "green",
-  updated: "blue",
-  skipped: "default",
-  failed: "red",
-  queued: "gold",
-  processing: "processing",
+const ITEM_TAG: Record<string, string> = {
+  created: "tag-ok",
+  updated: "tag-accent",
+  skipped: "tag-quiet",
+  failed: "tag-danger",
+  queued: "tag-warn",
+  processing: "tag-accent",
+};
+
+const ITEM_LABEL: Record<string, string> = {
+  created: "新建",
+  updated: "更新",
+  skipped: "跳过",
+  failed: "失败",
+  queued: "入队",
+  processing: "处理中",
 };
 
 export default function ScanJobDetailPage() {
@@ -45,7 +53,10 @@ export default function ScanJobDetailPage() {
 
   const load = useCallback(async () => {
     try {
-      const [j, it] = await Promise.all([api.getScanJob(id), api.listScanJobItems(id)]);
+      const [j, it] = await Promise.all([
+        api.getScanJob(id),
+        api.listScanJobItems(id),
+      ]);
       setJob(j);
       setItems(it.items as Item[]);
     } catch (e) {
@@ -60,7 +71,9 @@ export default function ScanJobDetailPage() {
   }, [load]);
 
   const failed = items.filter((i) => i.status === "failed");
-  const pct = job?.total_items ? Math.round((job.processed_items / job.total_items) * 100) : 0;
+  const pct = job?.total_items
+    ? Math.round((job.processed_items / job.total_items) * 100)
+    : 0;
 
   async function onRetry() {
     setLoading(true);
@@ -79,35 +92,74 @@ export default function ScanJobDetailPage() {
     {
       title: "状态",
       dataIndex: "status",
-      width: 120,
-      render: (s: string) => <Tag color={itemTagColor[s] ?? "default"}>{s}</Tag>,
+      width: 110,
+      render: (s: string) => (
+        <span className={`ant-tag ${ITEM_TAG[s] ?? "tag-quiet"}`}>
+          {ITEM_LABEL[s] ?? s}
+        </span>
+      ),
     },
     {
       title: "格式",
       dataIndex: "file_format",
-      width: 90,
-      render: (f: string | null) => (f ? <Tag>{f.toUpperCase()}</Tag> : "—"),
+      width: 80,
+      render: (f: string | null) =>
+        f ? <span className="ant-tag tag-quiet">{f.toUpperCase()}</span> : "—",
     },
     {
       title: "路径",
       dataIndex: "file_path",
       ellipsis: true,
-      render: (v: string) => <Typography.Text code>{v}</Typography.Text>,
+      render: (v: string) => (
+        <Typography.Text
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 12.5,
+            color: "var(--ink)",
+          }}
+        >
+          {v}
+        </Typography.Text>
+      ),
     },
     {
       title: "错误信息",
       dataIndex: "error_message",
       width: 320,
-      render: (e: string | null) => (e ? <Typography.Text type="danger">{e}</Typography.Text> : "—"),
+      render: (e: string | null) =>
+        e ? (
+          <Typography.Text
+            style={{ color: "var(--danger)", fontSize: 12.5 }}
+          >
+            {e}
+          </Typography.Text>
+        ) : (
+          <span style={{ color: "var(--ink-faint)" }}>—</span>
+        ),
     },
   ];
+
+  const stroke =
+    job?.status === "failed"
+      ? "var(--danger)"
+      : job?.status === "completed"
+      ? "var(--ok)"
+      : "var(--accent)";
 
   return (
     <AppShell>
       <div className="page-header">
         <div>
           <h1>扫描任务详情</h1>
-          <div className="subtitle">Job {id.slice(0, 8)}…</div>
+          <div className="subtitle">
+            Job{" "}
+            <span
+              className="numeric"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}
+            >
+              {id.slice(0, 8)}…
+            </span>
+          </div>
         </div>
         <Space>
           <Button onClick={() => router.back()}>返回</Button>
@@ -127,34 +179,61 @@ export default function ScanJobDetailPage() {
       {job && (
         <>
           <Card bordered={false} style={{ marginBottom: 16 }}>
-            <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
+            <Descriptions
+              column={{ xs: 1, sm: 2, md: 3 }}
+              size="small"
+              labelStyle={{ color: "var(--ink-faint)" }}
+            >
               <Descriptions.Item label="类型">{job.job_type}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag>{job.status}</Tag></Descriptions.Item>
-              <Descriptions.Item label="路径">
-                <Typography.Text code>{job.requested_path}</Typography.Text>
+              <Descriptions.Item label="状态">
+                <span className="ant-tag tag-quiet">{job.status}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="总数">{job.total_items}</Descriptions.Item>
-              <Descriptions.Item label="成功">{job.success_items}</Descriptions.Item>
-              <Descriptions.Item label="失败">{job.failed_items}</Descriptions.Item>
+              <Descriptions.Item label="路径">
+                <Typography.Text
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12.5,
+                  }}
+                >
+                  {job.requested_path}
+                </Typography.Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="总数">
+                <span className="numeric">{job.total_items}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="成功">
+                <span className="numeric" style={{ color: "var(--ok)" }}>
+                  {job.success_items}
+                </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="失败">
+                <span className="numeric" style={{ color: "var(--danger)" }}>
+                  {job.failed_items}
+                </span>
+              </Descriptions.Item>
               <Descriptions.Item label="创建时间">
-                {job.created_at?.replace("T", " ").slice(0, 19)}
+                <span className="numeric" style={{ color: "var(--ink-soft)" }}>
+                  {job.created_at?.replace("T", " ").slice(0, 19)}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="开始时间">
-                {job.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                <span className="numeric" style={{ color: "var(--ink-soft)" }}>
+                  {job.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="完成时间">
-                {job.finished_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                <span className="numeric" style={{ color: "var(--ink-soft)" }}>
+                  {job.finished_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                </span>
               </Descriptions.Item>
             </Descriptions>
             <Progress
               percent={pct}
-              status={
-                job.status === "failed"
-                  ? "exception"
-                  : job.status === "completed"
-                  ? "success"
-                  : "active"
-              }
+              strokeColor={stroke}
+              trailColor="var(--muted)"
+              strokeLinecap="butt"
+              strokeWidth={4}
+              showInfo={false}
               style={{ marginTop: 12 }}
             />
           </Card>
@@ -167,6 +246,14 @@ export default function ScanJobDetailPage() {
               size="middle"
               scroll={{ x: 900 }}
               pagination={{ pageSize: 20, showSizeChanger: true }}
+              locale={{
+                emptyText: (
+                  <div className="empty-state">
+                    <div className="label">暂无项目</div>
+                    <div className="hint">扫描器还未发现任何文件。</div>
+                  </div>
+                ),
+              }}
             />
           </Card>
         </>

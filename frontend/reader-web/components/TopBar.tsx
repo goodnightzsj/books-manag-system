@@ -16,8 +16,8 @@ export function TopBar() {
   }
   return (
     <div className="topbar">
-      <Link href="/library" className="brand">
-        📖 读书
+      <Link href="/library" className="brand" aria-label="books">
+        books<span className="dot">.</span>
       </Link>
       <nav>
         {navs.map((n) => (

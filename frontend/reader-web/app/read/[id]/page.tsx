@@ -56,24 +56,43 @@ export default function ReadPage() {
   return (
     <>
       <div className="reader-chrome">
-        <Link href="/library" className="btn ghost">← 书架</Link>
+        <Link href="/library" className="btn ghost">
+          ← 书架
+        </Link>
         <div style={{ flex: 1, textAlign: "center" }}>
           <div
             style={{
               fontFamily: "var(--font-serif)",
               fontWeight: 600,
-              fontSize: 16,
-              letterSpacing: "0.01em",
+              fontSize: 17,
+              color: "var(--ink)",
+              letterSpacing: "-0.005em",
+              fontFeatureSettings: "'tnum', 'lnum', 'kern', 'liga'",
+              lineHeight: 1.2,
             }}
           >
             {book.title}
           </div>
-          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>
-            {book.author ?? "佚名"} · {fmt.toUpperCase()}
+          <div
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: 11,
+              color: "var(--ink-faint)",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              marginTop: 3,
+              fontWeight: 500,
+            }}
+          >
+            {book.author ?? "佚名"}
+            <span aria-hidden style={{ margin: "0 8px", opacity: 0.5 }}>
+              ·
+            </span>
+            {fmt.toUpperCase()}
           </div>
         </div>
         <button className="btn" onClick={() => setDrawerOpen(true)}>
-          ☰ 书签 / 批注
+          书签 / 批注
         </button>
       </div>
 

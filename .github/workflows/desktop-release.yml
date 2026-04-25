@@ -1,0 +1,182 @@
+name: Desktop · Tauri release
+
+# Builds the Tauri shell wrapping frontend/reader-web for Windows /
+# macOS (Apple Silicon + Intel) / Linux. All artifacts land in the same
+# tag's unified Release shared with docker / android / ios workflows.
+#
+# Code signing is optional. Without secrets the macOS bundle is ad-hoc
+# signed (Gatekeeper warning on first launch); Windows is unsigned
+# (SmartScreen warning).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            label: mac-arm64
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            label: mac-x64
+          - platform: ubuntu-24.04
+            args: ""
+            label: linux-x64
+          - platform: windows-latest
+            args: ""
+            label: win-x64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./apps/desktop-shell/src-tauri -> target"
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            curl wget file patchelf
+
+      # Reader-web is the embedded UI. tauri.conf.json points at it via
+      # ../../frontend/reader-web; install + build it first.
+      - name: Install reader-web deps
+        working-directory: frontend/reader-web
+        run: npm install --no-audit --no-fund
+
+      - name: Build reader-web
+        working-directory: frontend/reader-web
+        run: npm run build
+
+      - name: Install desktop shell deps
+        working-directory: apps/desktop-shell
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare signing env
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY_SECRET: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
+          WINDOWS_CERTIFICATE_SECRET: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          TAURI_SIGNING_KEY_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_KEY_PW_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [[ "${{ matrix.platform }}" == macos-* ]]; then
+            if [ -n "$APPLE_SIGNING_IDENTITY_SECRET" ]; then
+              echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY_SECRET" >> "$GITHUB_ENV"
+              [ -n "$APPLE_TEAM_ID_SECRET" ] && echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET" >> "$GITHUB_ENV"
+              [ -n "$APPLE_ID_SECRET" ] && echo "APPLE_ID=$APPLE_ID_SECRET" >> "$GITHUB_ENV"
+              [ -n "$APPLE_PASSWORD_SECRET" ] && echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            else
+              # Ad-hoc only -- do NOT set TEAM_ID/APPLE_ID/PASSWORD here; tauri
+              # interprets empty values as "please notarize" and fails.
+              echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            fi
+          fi
+          if [[ "${{ matrix.platform }}" == windows-* ]] && [ -n "$WINDOWS_CERTIFICATE_SECRET" ]; then
+            echo "WINDOWS_CERTIFICATE=$WINDOWS_CERTIFICATE_SECRET" >> "$GITHUB_ENV"
+            echo "WINDOWS_CERTIFICATE_PASSWORD=$WINDOWS_CERTIFICATE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$TAURI_SIGNING_KEY_SECRET" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY=$TAURI_SIGNING_KEY_SECRET" >> "$GITHUB_ENV"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$TAURI_SIGNING_KEY_PW_SECRET" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build Tauri app
+        working-directory: apps/desktop-shell
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/tauri-dist"
+          find apps/desktop-shell/src-tauri/target -type d -name bundle -print0 | \
+          while IFS= read -r -d '' bundle_dir; do
+            find "$bundle_dir" -type f \( \
+              -name "*.dmg" -o \
+              -name "*.msi" -o \
+              -name "*.exe" -o \
+              -name "*.AppImage" -o \
+              -name "*.deb" -o \
+              -name "*.rpm" \
+            \) -exec cp -v {} "$RUNNER_TEMP/tauri-dist/" \;
+          done
+          ls -la "$RUNNER_TEMP/tauri-dist/" || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.label }}
+          path: ${{ runner.temp }}/tauri-dist/
+          if-no-files-found: warn
+          retention-days: 30
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (for RELEASE_BODY)
+        uses: actions/checkout@v4
+
+      - name: Download all desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: dist
+          merge-multiple: true
+
+      - name: List
+        run: ls -la dist/
+
+      - name: Attach to unified Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Books Management System ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          files: dist/*

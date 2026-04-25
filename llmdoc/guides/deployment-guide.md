@@ -3,6 +3,19 @@
 Three supported deployment paths: **Docker Compose** (recommended),
 **bare-metal systemd** (VPS / Ubuntu / CentOS), and **local dev**.
 
+The canonical public hostname is **`books.9962510.xyz`**:
+
+- `/` -- reader-web
+- `/admin/` -- admin-web
+- `/api/v1/` -- backend API
+- `/uploads/` -- static covers (read-only)
+- `/docs`, `/openapi.json` -- API docs
+- `/health`, `/metrics` -- ops endpoints
+
+`infra/docker/nginx/conf.d/api.conf` already sets `server_name
+books.9962510.xyz` and enforces HSTS + modern TLS ciphers. For TLS
+bootstrap (Caddy / certbot / Cloudflare), see `infra/deploy/cert/README.md`.
+
 ## Prerequisites
 
 Runtime settings live in `backend/app/core/config.py`. Full key
@@ -119,10 +132,54 @@ Both Next.js apps proxy `/api/*` to `NEXT_PUBLIC_API_BASE` (default
   `METRICS_ENABLED=true`, default true)
 - `LOG_JSON=true` -- switches stdout to JSON for log shippers.
 
+## Release flow (GitHub Actions)
+
+Tag-only pipelines live under `.github/workflows/`:
+
+| Workflow | Trigger | Output |
+|---|---|---|
+| `docker-publish.yml` | `tags: v*` | 3 multi-arch images (`backend`, `admin-web`, `reader-web`) -> Docker Hub + `docker-images.txt` asset |
+| `desktop-release.yml` | `tags: v*` | Tauri bundles for win-x64 / mac-arm64 / mac-x64 / linux-x64 |
+| `android-release.yml` | `tags: v*` | Capacitor APK / AAB (signed when keystore secret present, debug otherwise) |
+| `ios-release.yml` | `tags: v*` | Capacitor IPA (signed) or Simulator `.app.tar.gz` (fallback) |
+| `ci.yml` | push / PR to `main` | unit tests + typecheck only, no artifacts |
+
+All four release workflows attach assets to the **same** unified GitHub Release for the tag (shared `body_path: .github/RELEASE_BODY.md`).
+
+### Required repo settings
+
+| Kind | Name | Notes |
+|---|---|---|
+| Variable | `DOCKERHUB_USERNAME` | Preferred. Falls back to `secrets.DOCKERHUB_USERNAME`. |
+| Variable | `DOCKERHUB_NAMESPACE` | Optional override; defaults to username. |
+| Secret | `DOCKERHUB_TOKEN` | Personal Access Token with **Read & Write** on the three target repos. |
+| Secret | `ANDROID_KEYSTORE_*` | Optional; without these the workflow ships an unsigned debug APK. |
+| Secret | `IOS_*` / `APPLE_*` | Optional; without these the workflow ships a Simulator `.app.tar.gz`. |
+| Secret | `APPLE_SIGNING_IDENTITY`, `WINDOWS_CERTIFICATE`, `TAURI_SIGNING_PRIVATE_KEY` | Optional desktop signing. |
+
+### Cutting a release
+
+```bash
+git tag -a v1.0.0 -m "v1.0.0"
+git push origin v1.0.0
+```
+
+Kicks off all four workflows in parallel; each uploads to the same draft release. Review and publish from the GitHub UI when all jobs report green.
+
+### Why tag-only
+
+Every-commit Docker builds are intentionally avoided to:
+
+1. Stay under Docker Hub rate limits.
+2. Avoid `:main` images that operators are tempted to pin in production.
+3. Keep `latest` synonymous with the most recent reviewed point in history.
+
+`mirror.gcr.io` is configured in the buildx step to bypass anonymous pull rate limits for base images.
+
 ## Historical notes
 
-- Earlier revisions had no compose file; as of
-  `docker-compose.yml` at the repo root this is no longer the case.
+- Earlier revisions had no compose file; as of `docker-compose.yml`
+  + `docker-compose.prod.yml` at the repo root this is no longer the case.
 - `entrypoint.sh` still hardcodes `postgres` and `redis` as readiness
   hostnames -- aligns with compose service names. For bare-metal put
   entries in `/etc/hosts` or edit the script.

@@ -1,0 +1,36 @@
+# Bootstrap server block (HTTP only) -- copy to bootstrap.conf and remove
+# api.conf during the FIRST certbot issuance, then revert.
+#
+# Use case: nginx in api.conf includes the :443 block which references
+# /etc/nginx/certs/.../fullchain.pem; on a brand-new server those files
+# don't exist yet. To break the chicken-and-egg:
+#
+#   1. mv conf.d/api.conf conf.d/api.conf.disabled
+#   2. cp conf.d/bootstrap.conf.example conf.d/bootstrap.conf
+#   3. docker compose up -d nginx
+#   4. docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+#        -d books.9962510.xyz --email you@example.com --agree-tos -n
+#   5. mv conf.d/api.conf.disabled conf.d/api.conf
+#   6. rm conf.d/bootstrap.conf
+#   7. docker compose exec nginx nginx -s reload
+
+upstream books_api { server api:8000; }
+
+server {
+    listen 80 default_server;
+    server_name books.9962510.xyz _;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location = /health {
+        access_log off;
+        proxy_pass http://books_api/health;
+    }
+
+    location / {
+        return 200 "books bootstrap -- waiting for TLS\n";
+        default_type text/plain;
+    }
+}

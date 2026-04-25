@@ -7,7 +7,6 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Space,
   Table,
   Typography,
   message,
@@ -23,6 +22,30 @@ type Category = {
   description?: string | null;
   parent_id?: string | null;
 };
+
+function EmptyCategories({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M4 6.5a1 1 0 011-1h4l1.5 2H19a1 1 0 011 1V18a1 1 0 01-1 1H5a1 1 0 01-1-1z"
+          stroke="currentColor"
+          strokeWidth="1.25"
+        />
+      </svg>
+      <div className="label">还没有任何分类</div>
+      <div className="hint">为图书建立第一个分类，例如「文学」「历史」「编程」。</div>
+      <Button
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={onCreate}
+        style={{ marginTop: 4 }}
+      >
+        新建分类
+      </Button>
+    </div>
+  );
+}
 
 export default function CategoriesPage() {
   const [items, setItems] = useState<Category[]>([]);
@@ -55,7 +78,7 @@ export default function CategoriesPage() {
       form.resetFields();
       load();
     } catch (e) {
-      if ((e as any)?.errorFields) return;
+      if ((e as { errorFields?: unknown })?.errorFields) return;
       message.error((e as Error).message);
     }
   }
@@ -74,9 +97,23 @@ export default function CategoriesPage() {
     {
       title: "名称",
       dataIndex: "name",
-      render: (n: string) => <Typography.Text strong>{n}</Typography.Text>,
+      render: (n: string) => (
+        <Typography.Text
+          strong
+          style={{ fontFamily: "var(--font-serif)", fontSize: 15 }}
+        >
+          {n}
+        </Typography.Text>
+      ),
     },
-    { title: "描述", dataIndex: "description", ellipsis: true, render: (d) => d || "—" },
+    {
+      title: "描述",
+      dataIndex: "description",
+      ellipsis: true,
+      render: (d) => (
+        <span style={{ color: "var(--ink-soft)" }}>{d || "—"}</span>
+      ),
+    },
     {
       title: "操作",
       key: "ops",
@@ -98,9 +135,15 @@ export default function CategoriesPage() {
       <div className="page-header">
         <div>
           <h1>分类管理</h1>
-          <div className="subtitle">共 {items.length} 个分类</div>
+          <div className="subtitle">
+            共 <span className="numeric">{items.length}</span> 个分类
+          </div>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => setOpen(true)}
+        >
           新建分类
         </Button>
       </div>
@@ -113,6 +156,7 @@ export default function CategoriesPage() {
           loading={loading}
           size="middle"
           pagination={false}
+          locale={{ emptyText: <EmptyCategories onCreate={() => setOpen(true)} /> }}
         />
       </Card>
 
@@ -130,7 +174,7 @@ export default function CategoriesPage() {
             label="名称"
             rules={[{ required: true, message: "请输入分类名称" }]}
           >
-            <Input placeholder="例如：文学、历史、编程" />
+            <Input placeholder="例如:文学、历史、编程" />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} placeholder="可选" />

@@ -1,15 +1,14 @@
 "use client";
 import {
+  AppstoreOutlined,
   BookOutlined,
-  CheckCircleTwoTone,
-  CloseCircleTwoTone,
-  FireOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
   RadarChartOutlined,
+  ReadOutlined,
   RiseOutlined,
-  TagsOutlined,
 } from "@ant-design/icons";
 import {
-  Avatar,
   Card,
   Col,
   List,
@@ -17,7 +16,6 @@ import {
   Row,
   Skeleton,
   Statistic,
-  Tag,
   Typography,
   message,
 } from "antd";
@@ -26,11 +24,102 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { api } from "@/lib/api";
 
+type Job = {
+  id: string;
+  status: string;
+  job_type: string;
+  requested_path: string;
+  total_items: number;
+  processed_items: number;
+  success_items: number;
+  failed_items: number;
+  created_at: string;
+};
+
+type Trending = {
+  id: string;
+  title: string;
+  author?: string | null;
+  cover_url?: string | null;
+  rating?: number | null;
+};
+
+const ICON_STYLE = { color: "var(--ink-soft)", fontSize: 18 } as const;
+
+function StatCard({
+  title,
+  value,
+  suffix,
+  icon,
+  loading,
+  footer,
+}: {
+  title: string;
+  value: number | string;
+  suffix?: React.ReactNode;
+  icon: React.ReactNode;
+  loading?: boolean;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <Card bordered={false} loading={loading} bodyStyle={{ padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          color: "var(--ink-faint)",
+        }}
+      >
+        <span className="eyebrow">{title}</span>
+        <span style={ICON_STYLE}>{icon}</span>
+      </div>
+      <Statistic
+        value={value}
+        suffix={suffix}
+        valueStyle={{
+          fontFamily: "var(--font-serif)",
+          fontWeight: 600,
+          fontSize: 30,
+          color: "var(--ink)",
+          letterSpacing: "-0.01em",
+        }}
+      />
+      {footer && <div style={{ marginTop: 8 }}>{footer}</div>}
+    </Card>
+  );
+}
+
+function statusToTagClass(status: string): string {
+  if (status === "completed") return "tag-ok";
+  if (status === "failed") return "tag-danger";
+  if (status === "partial_success") return "tag-warn";
+  if (status === "running" || status === "queued") return "tag-accent";
+  return "tag-quiet";
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "partial_success":
+      return "部分成功";
+    case "running":
+      return "运行中";
+    case "queued":
+      return "已入队";
+    default:
+      return status;
+  }
+}
+
 export default function DashboardPage() {
-  const [books, setBooks] = useState<{ items: any[]; total: number } | null>(null);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [trending, setTrending] = useState<any[]>([]);
+  const [bookTotal, setBookTotal] = useState<number | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [categories, setCategories] = useState<{ id: string }[]>([]);
+  const [trending, setTrending] = useState<Trending[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,10 +133,10 @@ export default function DashboardPage() {
           api.trending(6),
         ]);
         if (!alive) return;
-        setBooks({ items: [], total: b.total });
-        setJobs(j.items);
-        setCategories(c as any[]);
-        setTrending(t);
+        setBookTotal(b.total);
+        setJobs(j.items as Job[]);
+        setCategories(c as { id: string }[]);
+        setTrending(t as Trending[]);
       } catch (e) {
         message.error((e as Error).message);
       } finally {
@@ -75,62 +164,61 @@ export default function DashboardPage() {
     return Math.round(((total - failed) / total) * 100);
   }, [jobs]);
 
+  const healthColor =
+    healthyRate >= 90 ? "var(--ok)" : healthyRate >= 70 ? "var(--warn)" : "var(--danger)";
+
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h1>Dashboard</h1>
-          <div className="subtitle">图书馆运行态势 · 最近任务 · 推荐榜单</div>
+          <h1>主控台</h1>
+          <div className="subtitle">图书馆运行态势 · 最近任务 · 评分榜单</div>
         </div>
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
-          <Card bordered={false} loading={loading}>
-            <Statistic
-              title={<span style={{ color: "#6b7280" }}>图书总数</span>}
-              value={books?.total ?? 0}
-              prefix={<BookOutlined style={{ color: "#4F46E5" }} />}
-              valueStyle={{ fontWeight: 600, fontSize: 26 }}
-            />
-          </Card>
+          <StatCard
+            title="图书总数"
+            value={bookTotal ?? 0}
+            icon={<BookOutlined />}
+            loading={loading}
+          />
         </Col>
         <Col xs={12} md={6}>
-          <Card bordered={false} loading={loading}>
-            <Statistic
-              title={<span style={{ color: "#6b7280" }}>分类数量</span>}
-              value={categories.length}
-              prefix={<TagsOutlined style={{ color: "#10B981" }} />}
-              valueStyle={{ fontWeight: 600, fontSize: 26 }}
-            />
-          </Card>
+          <StatCard
+            title="分类数量"
+            value={categories.length}
+            icon={<AppstoreOutlined />}
+            loading={loading}
+          />
         </Col>
         <Col xs={12} md={6}>
-          <Card bordered={false} loading={loading}>
-            <Statistic
-              title={<span style={{ color: "#6b7280" }}>进行中任务</span>}
-              value={jobStats.running}
-              prefix={<RadarChartOutlined style={{ color: "#F59E0B" }} />}
-              valueStyle={{ fontWeight: 600, fontSize: 26 }}
-            />
-          </Card>
+          <StatCard
+            title="进行中任务"
+            value={jobStats.running}
+            icon={<RadarChartOutlined />}
+            loading={loading}
+          />
         </Col>
         <Col xs={12} md={6}>
-          <Card bordered={false} loading={loading}>
-            <Statistic
-              title={<span style={{ color: "#6b7280" }}>近任务健康度</span>}
-              value={healthyRate}
-              suffix="%"
-              prefix={<RiseOutlined style={{ color: "#8B5CF6" }} />}
-              valueStyle={{ fontWeight: 600, fontSize: 26 }}
-            />
-            <Progress
-              percent={healthyRate}
-              showInfo={false}
-              strokeColor={healthyRate >= 80 ? "#10B981" : "#F59E0B"}
-              style={{ marginTop: 8 }}
-            />
-          </Card>
+          <StatCard
+            title="近任务健康度"
+            value={healthyRate}
+            suffix="%"
+            icon={<RiseOutlined />}
+            loading={loading}
+            footer={
+              <Progress
+                percent={healthyRate}
+                showInfo={false}
+                strokeColor={healthColor}
+                trailColor="var(--muted)"
+                strokeLinecap="butt"
+                strokeWidth={4}
+              />
+            }
+          />
         </Col>
       </Row>
 
@@ -139,54 +227,103 @@ export default function DashboardPage() {
           <Card
             bordered={false}
             title="最近扫描任务"
-            extra={<Link href="/scanner">查看全部</Link>}
+            extra={
+              <Link href="/scanner" style={{ color: "var(--accent)" }}>
+                查看全部 →
+              </Link>
+            }
             loading={loading}
           >
             <List
               dataSource={jobs}
-              locale={{ emptyText: "暂无任务" }}
-              renderItem={(j: any) => (
-                <List.Item
-                  actions={[
-                    <Link href={`/scanner/jobs/${j.id}`} key="view">
-                      查看
-                    </Link>,
-                  ]}
-                >
-                  <List.Item.Meta
-                    avatar={
-                      j.status === "completed" ? (
-                        <CheckCircleTwoTone
-                          twoToneColor="#10B981"
-                          style={{ fontSize: 24 }}
-                        />
-                      ) : j.status === "failed" ? (
-                        <CloseCircleTwoTone
-                          twoToneColor="#EF4444"
-                          style={{ fontSize: 24 }}
-                        />
-                      ) : (
-                        <RadarChartOutlined style={{ fontSize: 24, color: "#4F46E5" }} />
-                      )
-                    }
-                    title={
-                      <Typography.Text code style={{ fontSize: 13 }}>
-                        {j.requested_path}
-                      </Typography.Text>
-                    }
-                    description={
-                      <div>
-                        <Tag>{j.job_type}</Tag>
-                        <Tag color="blue">{j.status}</Tag>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {j.success_items}/{j.total_items} 成功 ·{" "}
-                          {j.created_at?.replace("T", " ").slice(0, 19)}
+              locale={{
+                emptyText: (
+                  <div className="empty-state">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                      <rect
+                        x="3.5"
+                        y="5"
+                        width="17"
+                        height="14"
+                        rx="1"
+                        stroke="currentColor"
+                        strokeWidth="1.25"
+                      />
+                      <path
+                        d="M3.5 10h17M8 14h4"
+                        stroke="currentColor"
+                        strokeWidth="1.25"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="label">还没有任务</div>
+                    <div className="hint">在「扫描」页面发起一个目录扫描即可。</div>
+                  </div>
+                ),
+              }}
+              renderItem={(j: Job) => {
+                const icon =
+                  j.status === "completed" ? (
+                    <CheckCircleOutlined style={{ color: "var(--ok)", fontSize: 18 }} />
+                  ) : j.status === "failed" ? (
+                    <CloseCircleOutlined style={{ color: "var(--danger)", fontSize: 18 }} />
+                  ) : (
+                    <RadarChartOutlined style={{ color: "var(--accent)", fontSize: 18 }} />
+                  );
+                return (
+                  <List.Item
+                    actions={[
+                      <Link
+                        href={`/scanner/jobs/${j.id}`}
+                        key="view"
+                        style={{ color: "var(--ink-soft)", fontSize: 12.5 }}
+                      >
+                        查看 →
+                      </Link>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={icon}
+                      title={
+                        <Typography.Text
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 13,
+                            color: "var(--ink)",
+                          }}
+                        >
+                          {j.requested_path}
                         </Typography.Text>
-                      </div>
-                    }
-                  />
-                </List.Item>
-              )}
+                      }
+                      description={
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginTop: 4,
+                            fontSize: 12,
+                            color: "var(--ink-faint)",
+                          }}
+                        >
+                          <span className={`ant-tag ${statusToTagClass(j.status)}`}>
+                            {statusLabel(j.status)}
+                          </span>
+                          <span className="numeric">
+                            {j.success_items}/{j.total_items} 成功
+                          </span>
+                          <span aria-hidden style={{ color: "var(--rule)" }}>
+                            ·
+                          </span>
+                          <span className="numeric">
+                            {j.created_at?.replace("T", " ").slice(0, 19)}
+                          </span>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                );
+              }}
             />
           </Card>
         </Col>
@@ -194,9 +331,9 @@ export default function DashboardPage() {
           <Card
             bordered={false}
             title={
-              <span>
-                <FireOutlined style={{ color: "#F97316", marginRight: 8 }} />
-                评分 Top
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <ReadOutlined style={{ color: "var(--ink-faint)" }} />
+                评分榜单
               </span>
             }
             loading={loading}
@@ -204,55 +341,98 @@ export default function DashboardPage() {
             {trending.length === 0 ? (
               <Skeleton active paragraph={{ rows: 3 }} />
             ) : (
-              <List
-                dataSource={trending}
-                renderItem={(b: any, idx: number) => (
-                  <List.Item>
-                    <List.Item.Meta
-                      avatar={
-                        b.cover_url ? (
-                          <Avatar
-                            shape="square"
-                            size={44}
-                            src={b.cover_url}
-                            style={{ borderRadius: 6 }}
-                          />
-                        ) : (
-                          <Avatar
-                            shape="square"
-                            size={44}
-                            style={{
-                              borderRadius: 6,
-                              background: "#eef2ff",
-                              color: "#4F46E5",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {idx + 1}
-                          </Avatar>
-                        )
-                      }
-                      title={
-                        <Link href={`/books/${b.id}`}>
-                          <Typography.Text strong>{b.title}</Typography.Text>
-                        </Link>
-                      }
-                      description={
-                        <div style={{ fontSize: 12 }}>
-                          <Typography.Text type="secondary">
-                            {b.author ?? "?"}
-                          </Typography.Text>
-                          {b.rating != null && (
-                            <Tag style={{ marginLeft: 8 }} color="gold">
-                              ★ {b.rating.toFixed(1)}
-                            </Tag>
-                          )}
-                        </div>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
+              <div>
+                {trending.map((b, idx) => (
+                  <Link
+                    key={b.id}
+                    href={`/books/${b.id}`}
+                    className="list-row"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <span
+                      className="numeric eyebrow"
+                      style={{
+                        width: 28,
+                        textAlign: "right",
+                        color: "var(--ink-faint)",
+                        fontSize: 12,
+                      }}
+                    >
+                      {String(idx + 1).padStart(2, "0")}
+                    </span>
+                    {b.cover_url ? (
+                      <img
+                        src={b.cover_url}
+                        alt=""
+                        style={{
+                          width: 36,
+                          height: 50,
+                          objectFit: "cover",
+                          borderRadius: 3,
+                          border: "1px solid var(--rule)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 36,
+                          height: 50,
+                          background: "var(--muted)",
+                          color: "var(--ink-soft)",
+                          borderRadius: 3,
+                          display: "grid",
+                          placeItems: "center",
+                          fontFamily: "var(--font-serif)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {b.title.slice(0, 1)}
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-serif)",
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: "var(--ink)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {b.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: "var(--ink-faint)",
+                          letterSpacing: "0.04em",
+                          marginTop: 2,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {b.author ?? "—"}
+                      </div>
+                    </div>
+                    {b.rating != null && (
+                      <span
+                        className="numeric"
+                        style={{
+                          fontFamily: "var(--font-serif)",
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: "var(--accent)",
+                          minWidth: 44,
+                          textAlign: "right",
+                        }}
+                      >
+                        ★ {b.rating.toFixed(1)}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
             )}
           </Card>
         </Col>

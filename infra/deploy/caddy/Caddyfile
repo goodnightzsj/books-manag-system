@@ -1,0 +1,58 @@
+# One-shot TLS via Caddy 2 -- automatic Let's Encrypt issuance + renewal.
+#
+# Trade-off vs nginx: less knobs, but zero-config TLS. Use this if you
+# want "git pull && docker compose up -d" to ship a working https stack
+# without certbot dance.
+#
+# Run via: see infra/deploy/caddy/docker-compose.caddy.yml
+
+books.9962510.xyz {
+	encode zstd gzip
+
+	# Backend API
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+	handle /docs       { reverse_proxy api:8000 }
+	handle /openapi.json { reverse_proxy api:8000 }
+	handle /health     { reverse_proxy api:8000 }
+
+	# /metrics -- restrict to internal nets
+	@metrics path /metrics
+	handle @metrics {
+		@allow remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+		handle @allow {
+			reverse_proxy api:8000
+		}
+		respond 403
+	}
+
+	# Admin console at /admin
+	handle_path /admin/* {
+		reverse_proxy admin-web:3000
+	}
+
+	# Static uploads
+	handle_path /uploads/* {
+		root * /srv/uploads
+		file_server
+	}
+
+	# Reader at root
+	handle {
+		reverse_proxy reader-web:3001
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    nosniff
+		X-Frame-Options           SAMEORIGIN
+		Referrer-Policy           strict-origin-when-cross-origin
+		Permissions-Policy        "geolocation=(), microphone=(), camera=()"
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

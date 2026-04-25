@@ -18,7 +18,6 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Typography,
   message,
 } from "antd";
@@ -26,6 +25,20 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { api } from "@/lib/api";
+
+const HASH_TAG: Record<string, string> = {
+  done: "tag-ok",
+  pending: "tag-warn",
+  failed: "tag-danger",
+  skipped: "tag-quiet",
+};
+
+const HASH_LABEL: Record<string, string> = {
+  done: "已校验",
+  pending: "待计算",
+  failed: "失败",
+  skipped: "跳过",
+};
 
 export default function BookDetailPage() {
   const params = useParams<{ id: string }>();
@@ -108,7 +121,7 @@ export default function BookDetailPage() {
   async function resyncMetadata() {
     try {
       await api.queueMetadata(id, true);
-      message.success("已入队：元数据重同步");
+      message.success("已入队:元数据重同步");
     } catch (e) {
       message.error((e as Error).message);
     }
@@ -116,29 +129,38 @@ export default function BookDetailPage() {
   async function resyncCover(remote: boolean) {
     try {
       await api.queueCover(id, remote);
-      message.success(remote ? "已入队：远程下载封面" : "已入队：本地提取封面");
+      message.success(remote ? "已入队:远程下载封面" : "已入队:本地提取封面");
     } catch (e) {
       message.error((e as Error).message);
     }
   }
 
-  if (!book) return <AppShell><Card loading bordered={false} /></AppShell>;
-
-  const hashColor: Record<string, string> = {
-    done: "green",
-    pending: "gold",
-    failed: "red",
-    skipped: "default",
-  };
+  if (!book)
+    return (
+      <AppShell>
+        <Card loading bordered={false} />
+      </AppShell>
+    );
 
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h1>{book.title}</h1>
-          <div className="subtitle">
-            {book.author ?? "—"} · <Tag color="geekblue">{String(book.file_format).toUpperCase()}</Tag>
-            <Tag color={hashColor[book.hash_status] ?? "default"}>{book.hash_status}</Tag>
+          <h1 style={{ fontFamily: "var(--font-serif)" }}>{book.title}</h1>
+          <div
+            className="subtitle"
+            style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+          >
+            <span>{book.author ?? "—"}</span>
+            <span aria-hidden style={{ color: "var(--rule)" }}>
+              ·
+            </span>
+            <span className="ant-tag tag-quiet">
+              {String(book.file_format).toUpperCase()}
+            </span>
+            <span className={`ant-tag ${HASH_TAG[book.hash_status] ?? "tag-quiet"}`}>
+              {HASH_LABEL[book.hash_status] ?? book.hash_status}
+            </span>
           </div>
         </div>
         <Space>
@@ -152,7 +174,12 @@ export default function BookDetailPage() {
           <Button icon={<CloudDownloadOutlined />} onClick={() => resyncCover(true)}>
             远程封面
           </Button>
-          <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={onSave}
+          >
             保存
           </Button>
         </Space>
@@ -164,7 +191,11 @@ export default function BookDetailPage() {
             <Form layout="vertical" form={form} requiredMark={false}>
               <Row gutter={16}>
                 <Col span={16}>
-                  <Form.Item name="title" label="书名" rules={[{ required: true, message: "书名不能为空" }]}>
+                  <Form.Item
+                    name="title"
+                    label="书名"
+                    rules={[{ required: true, message: "书名不能为空" }]}
+                  >
                     <Input />
                   </Form.Item>
                 </Col>
@@ -190,7 +221,7 @@ export default function BookDetailPage() {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="isbn" label="ISBN">
-                    <Input />
+                    <Input style={{ fontFamily: "var(--font-mono)" }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -200,7 +231,12 @@ export default function BookDetailPage() {
                 </Col>
                 <Col span={8}>
                   <Form.Item name="rating" label="评分">
-                    <InputNumber min={0} max={10} step={0.1} style={{ width: "100%" }} />
+                    <InputNumber
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      style={{ width: "100%" }}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -210,7 +246,10 @@ export default function BookDetailPage() {
                 </Col>
                 <Col span={24}>
                   <Form.Item name="cover_url" label="封面 URL">
-                    <Input placeholder="https://..." />
+                    <Input
+                      placeholder="https://..."
+                      style={{ fontFamily: "var(--font-mono)" }}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={24}>
@@ -224,7 +263,10 @@ export default function BookDetailPage() {
                 </Col>
                 <Col span={24}>
                   <Form.Item name="description" label="简介">
-                    <Input.TextArea rows={6} />
+                    <Input.TextArea
+                      rows={6}
+                      style={{ fontFamily: "var(--font-serif)", lineHeight: 1.7 }}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -238,7 +280,12 @@ export default function BookDetailPage() {
                 <Avatar
                   shape="square"
                   src={book.cover_url}
-                  style={{ width: 200, height: 280, borderRadius: 12 }}
+                  style={{
+                    width: 200,
+                    height: 280,
+                    borderRadius: 4,
+                    border: "1px solid var(--rule)",
+                  }}
                 />
               ) : (
                 <div
@@ -246,35 +293,69 @@ export default function BookDetailPage() {
                     width: 200,
                     height: 280,
                     margin: "0 auto",
-                    background: "linear-gradient(135deg,#e0e7ff,#f3e8ff)",
-                    borderRadius: 12,
+                    background: "var(--paper-cool)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: 4,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#4F46E5",
+                    color: "var(--ink)",
+                    fontFamily: "var(--font-serif)",
                     fontWeight: 600,
-                    fontSize: 48,
+                    fontSize: 56,
+                    position: "relative",
                   }}
                 >
-                  {book.title?.slice(0, 1) ?? "?"}
+                  <span style={{ position: "relative", zIndex: 1 }}>
+                    {book.title?.slice(0, 1) ?? "?"}
+                  </span>
+                  {/* deboss-style hairline frame */}
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: 8,
+                      border: "1px solid var(--rule)",
+                      borderRadius: 2,
+                    }}
+                  />
                 </div>
               )}
             </div>
             <Divider style={{ margin: "16px 0" }} />
-            <Descriptions column={1} size="small">
+            <Descriptions
+              column={1}
+              size="small"
+              labelStyle={{ color: "var(--ink-faint)" }}
+            >
               <Descriptions.Item label="大小">
-                {book.file_size ? `${(book.file_size / 1024 / 1024).toFixed(2)} MB` : "—"}
+                <span className="numeric">
+                  {book.file_size
+                    ? `${(book.file_size / 1024 / 1024).toFixed(2)} MB`
+                    : "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="Hash">
-                <Typography.Text code copyable>
+                <Typography.Text
+                  copyable
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                    color: "var(--ink)",
+                  }}
+                >
                   {book.content_hash?.slice(0, 16) ?? "—"}…
                 </Typography.Text>
               </Descriptions.Item>
               <Descriptions.Item label="元数据来源">
-                {book.source_provider ?? "—"}
+                <span style={{ color: "var(--ink-soft)" }}>
+                  {book.source_provider ?? "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="同步于">
-                {book.metadata_synced_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                <span className="numeric" style={{ color: "var(--ink-soft)" }}>
+                  {book.metadata_synced_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                </span>
               </Descriptions.Item>
             </Descriptions>
           </Card>
@@ -285,12 +366,23 @@ export default function BookDetailPage() {
               placeholder="选择分类"
               value={selectedCats}
               onChange={setSelectedCats}
-              options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
+              options={categories.map((c: any) => ({
+                label: c.name,
+                value: c.id,
+              }))}
               optionFilterProp="label"
               showSearch
             />
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
-              保存时会调用 <code>POST</code> / <code>DELETE /categories/&#123;id&#125;/books/&#123;book_id&#125;</code> 完成增删。
+            <Typography.Paragraph
+              type="secondary"
+              style={{ fontSize: 12, marginTop: 12 }}
+            >
+              保存时会调用{" "}
+              <code style={{ fontFamily: "var(--font-mono)" }}>POST</code> /{" "}
+              <code style={{ fontFamily: "var(--font-mono)" }}>
+                DELETE /categories/&#123;id&#125;/books/&#123;book_id&#125;
+              </code>{" "}
+              完成增删。
             </Typography.Paragraph>
           </Card>
         </Col>

@@ -25,7 +25,8 @@ type Tab = "bookmarks" | "annotations";
 
 function formatLocator(l: Locator): string {
   if (l.type === "pdf") return `页 ${l.page}`;
-  if (l.type === "epub") return l.chapter ? `${l.chapter}` : `${(l.progression ?? 0) * 100 | 0}%`;
+  if (l.type === "epub")
+    return l.chapter ? `${l.chapter}` : `${(l.progression ?? 0) * 100 | 0}%`;
   if (l.type === "txt") return `行 ${l.line}`;
   return "位置";
 }
@@ -149,46 +150,54 @@ export function ReaderDrawer({
           style={{
             display: "flex",
             alignItems: "center",
-            padding: "16px 20px",
+            padding: "18px 22px 14px",
             borderBottom: "1px solid var(--rule)",
-            gap: 8,
+            gap: 12,
           }}
         >
-          <strong style={{ fontFamily: "var(--font-serif)" }}>
-            {tab === "bookmarks" ? "书签" : "批注"}
-          </strong>
-          <div style={{ flex: 1 }} />
+          <div style={{ flex: 1 }}>
+            <div className="eyebrow">阅读侧边栏</div>
+            <div
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "var(--ink)",
+                marginTop: 2,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {tab === "bookmarks" ? "书签" : "批注"}
+            </div>
+          </div>
           <button className="btn ghost" onClick={onClose} aria-label="关闭">
             ✕
           </button>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            padding: "12px 20px",
-            borderBottom: "1px solid var(--rule)",
-          }}
-        >
-          {(["bookmarks", "annotations"] as const).map((t) => (
+        <div style={{ padding: "12px 22px", borderBottom: "1px solid var(--rule)" }}>
+          <div className="segmented" role="tablist">
             <button
-              key={t}
-              className="btn"
-              style={{
-                background: tab === t ? "var(--accent)" : "transparent",
-                color: tab === t ? "#fff" : "var(--ink)",
-                borderColor: tab === t ? "var(--accent)" : "var(--rule)",
-              }}
-              onClick={() => setTab(t)}
+              role="tab"
+              aria-selected={tab === "bookmarks"}
+              className={tab === "bookmarks" ? "active" : ""}
+              onClick={() => setTab("bookmarks")}
             >
-              {t === "bookmarks" ? `书签 (${bookmarks.length})` : `批注 (${annotations.length})`}
+              书签 <span className="numeric">({bookmarks.length})</span>
             </button>
-          ))}
+            <button
+              role="tab"
+              aria-selected={tab === "annotations"}
+              className={tab === "annotations" ? "active" : ""}
+              onClick={() => setTab("annotations")}
+            >
+              批注 <span className="numeric">({annotations.length})</span>
+            </button>
+          </div>
         </div>
 
         {error && <div className="error" style={{ margin: 16 }}>{error}</div>}
 
-        <div style={{ overflowY: "auto", padding: "12px 20px", flex: 1 }}>
+        <div style={{ overflowY: "auto", padding: "14px 22px", flex: 1 }}>
           {tab === "bookmarks" && (
             <>
               <div
@@ -248,9 +257,10 @@ export function ReaderDrawer({
                       </strong>
                       <span
                         style={{
-                          fontSize: 12,
+                          fontSize: 11,
                           fontFamily: "var(--font-sans)",
                           color: "var(--ink-faint)",
+                          letterSpacing: "0.04em",
                         }}
                       >
                         {formatLocator(b.locator)}
@@ -305,9 +315,10 @@ export function ReaderDrawer({
                   >
                     <div
                       style={{
-                        fontSize: 12,
+                        fontSize: 11,
                         fontFamily: "var(--font-sans)",
                         color: "var(--ink-faint)",
+                        letterSpacing: "0.04em",
                       }}
                     >
                       {formatLocator(a.locator_start)}
@@ -318,11 +329,11 @@ export function ReaderDrawer({
                           margin: "6px 0",
                           padding: "6px 12px",
                           background: "var(--bg-muted)",
-                          borderRadius: 6,
+                          borderRadius: 4,
                           fontStyle: "italic",
                         }}
                       >
-                        “{a.highlight_text}”
+                        {`“${a.highlight_text}”`}
                       </blockquote>
                     )}
                     {a.note && (

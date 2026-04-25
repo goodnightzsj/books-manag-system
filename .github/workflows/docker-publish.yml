@@ -1,0 +1,205 @@
+name: Docker · Tagged release
+
+# Builds 3 multi-arch images (backend / admin-web / reader-web) and pushes
+# them to Docker Hub. ALSO uploads a docker-images.txt asset to the unified
+# release shared with the desktop / mobile workflows.
+#
+# Triggers ONLY on tags v* and manual dispatch — every-commit builds are
+# intentionally avoided so we don't burn rate-limit credits.
+#
+# Secrets / vars expected on the repo:
+#   secrets.DOCKERHUB_TOKEN          (required)  -- Docker Hub Personal Access Token
+#   vars.DOCKERHUB_USERNAME          (preferred) -- e.g. helloworldz1024
+#   secrets.DOCKERHUB_USERNAME       (fallback)  -- if you store the username as a secret
+#   vars.DOCKERHUB_NAMESPACE         (optional)  -- defaults to the username
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (defaults to current branch sha; only used for manual dispatch)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.image.name }} (${{ matrix.image.context }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: backend
+            context: backend
+            dockerfile: backend/Dockerfile
+            repo_suffix: backend
+          - name: admin-web
+            context: frontend/admin-web
+            dockerfile: frontend/admin-web/Dockerfile
+            repo_suffix: admin-web
+          - name: reader-web
+            context: frontend/reader-web
+            dockerfile: frontend/reader-web/Dockerfile
+            repo_suffix: reader-web
+    env:
+      DOCKERHUB_USERNAME_VAR: ${{ vars.DOCKERHUB_USERNAME }}
+      DOCKERHUB_USERNAME_SECRET: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_NAMESPACE_VAR: ${{ vars.DOCKERHUB_NAMESPACE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Docker Hub repository
+        id: image
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REPO_SUFFIX: ${{ matrix.image.repo_suffix }}
+        run: |
+          set -euo pipefail
+          trim() { printf '%s' "$1" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+
+          USERNAME="$(trim "${DOCKERHUB_USERNAME_VAR:-${DOCKERHUB_USERNAME_SECRET:-}}")"
+          NAMESPACE="$(trim "${DOCKERHUB_NAMESPACE_VAR:-${USERNAME}}")"
+          IMAGE_NAME="${{ github.event.repository.name }}-${REPO_SUFFIX}"
+
+          if [ -z "$USERNAME" ]; then
+            echo "::error::Missing DOCKERHUB_USERNAME (set Actions Variable preferred or Secret)"
+            exit 1
+          fi
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::error::Missing DOCKERHUB_TOKEN (Actions Secret)"
+            exit 1
+          fi
+          case "$USERNAME$NAMESPACE" in
+            */*|*:*|*" "*) echo "::error::Invalid username/namespace"; exit 1;;
+          esac
+
+          REPO="$NAMESPACE/$IMAGE_NAME"
+          echo "username=$USERNAME"   >> "$GITHUB_OUTPUT"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+          echo "repo=$REPO"           >> "$GITHUB_OUTPUT"
+          echo "Resolved image: $REPO"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # Mirror docker.io pulls through Google's read-through cache to
+          # bypass Docker Hub anonymous rate limits during multi-arch
+          # base-image fetches. Push still goes to Docker Hub via the login
+          # step below — only pull paths use the mirror.
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ steps.image.outputs.username }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.repo }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=${{ github.event.repository.name }}-${{ matrix.image.repo_suffix }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.image.context }}
+          file: ./${{ matrix.image.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,scope=${{ matrix.image.name }},mode=max
+
+      - name: Record image tags
+        if: github.ref_type == 'tag'
+        run: |
+          mkdir -p docker-tags
+          {
+            echo "# ${{ matrix.image.name }}"
+            echo "Repository: ${{ steps.image.outputs.repo }}"
+            echo "Digest:     ${{ steps.build.outputs.digest }}"
+            echo ""
+            echo "Tags:"
+            echo "${{ steps.meta.outputs.tags }}"
+          } > "docker-tags/${{ matrix.image.name }}.txt"
+
+      - name: Upload tag manifest artifact
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-tags-${{ matrix.image.name }}
+          path: docker-tags/
+          retention-days: 30
+
+  release:
+    name: Attach docker tag manifest to release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (for RELEASE_BODY)
+        uses: actions/checkout@v4
+
+      - name: Download docker-tags artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: docker-tags-*
+          path: docker-tags-merged
+          merge-multiple: true
+
+      - name: Combine into single manifest
+        run: |
+          set -e
+          out="docker-images.txt"
+          {
+            echo "# Books Management System -- Docker images"
+            echo "# tag: ${{ github.ref_name }}"
+            echo
+            for f in docker-tags-merged/*.txt; do
+              cat "$f"
+              echo
+            done
+          } > "$out"
+          cat "$out"
+
+      - name: Attach to unified Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Books Management System ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          files: docker-images.txt
