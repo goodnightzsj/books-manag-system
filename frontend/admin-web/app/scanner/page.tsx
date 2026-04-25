@@ -8,7 +8,6 @@ import {
   SyncOutlined,
 } from "@ant-design/icons";
 import {
-  Alert,
   Button,
   Card,
   Form,
@@ -23,6 +22,7 @@ import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { api } from "@/lib/api";
 
 type Job = {
@@ -268,7 +268,16 @@ export default function ScannerPage() {
       </Card>
 
       {error && (
-        <Alert style={{ marginBottom: 16 }} type="error" showIcon message={error} />
+        <div style={{ marginBottom: 16 }}>
+          <ErrorBanner
+            title="扫描任务列表加载失败"
+            description={error}
+            onRetry={() => {
+              setError(null);
+              load();
+            }}
+          />
+        </div>
       )}
 
       <Card bordered={false} title="最近任务">

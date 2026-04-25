@@ -278,3 +278,56 @@ a { color: inherit; }
 
 /* Selection color — terracotta wash, not browser-default blue. */
 ::selection { background: var(--accent-soft); color: var(--ink); }
+
+/* ---- Inputs: hover darkens the border one notch ----------------- */
+.ant-input:not(:focus):not(.ant-input-disabled):hover,
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-focused):hover,
+.ant-input-number:not(.ant-input-number-focused):hover,
+.ant-picker:not(.ant-picker-focused):hover,
+.ant-select:not(.ant-select-focused) .ant-select-selector:hover {
+  border-color: var(--ink-faint) !important;
+}
+
+/* ---- Form numeric fields: tabular figures so digits align ------- */
+.ant-input-number-input,
+input.numeric,
+.numeric .ant-input-number-input {
+  font-feature-settings: "tnum", "lnum", "cv11";
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---- AntD Skeleton: tone shimmer to muted paper, not blue-grey -- */
+.ant-skeleton .ant-skeleton-content .ant-skeleton-title,
+.ant-skeleton .ant-skeleton-content .ant-skeleton-paragraph > li,
+.ant-skeleton .ant-skeleton-image,
+.ant-skeleton-button,
+.ant-skeleton-avatar {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    rgba(231, 226, 214, 0.55) 37%,
+    var(--muted) 63%
+  ) !important;
+}
+
+/* ---- Sider trigger: keep dark when expanded ---------------------- */
+.ant-layout-sider-collapsed .ant-layout-sider-trigger {
+  background: #161512 !important;
+}
+
+/* ---- Mobile: page header stacks; controls wrap. ----------------- */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .page-header h1 { font-size: 22px; }
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .ant-layout-content {
+    margin: 16px !important;
+  }
+}

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Locator } from "@/lib/progress";
+import { ErrorBanner } from "./ErrorBanner";
 
 type Bookmark = {
   id: string;
@@ -195,7 +196,16 @@ export function ReaderDrawer({
           </div>
         </div>
 
-        {error && <div className="error" style={{ margin: 16 }}>{error}</div>}
+        {error && (
+          <div style={{ margin: 16 }}>
+            <ErrorBanner
+              title="操作失败"
+              description={error}
+              onRetry={() => setError(null)}
+              retryLabel="清除"
+            />
+          </div>
+        )}
 
         <div style={{ overflowY: "auto", padding: "14px 22px", flex: 1 }}>
           {tab === "bookmarks" && (

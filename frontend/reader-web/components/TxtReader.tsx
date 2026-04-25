@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { makeProgressSync, type Locator } from "@/lib/progress";
+import { ErrorBanner } from "./ErrorBanner";
 
 export function TxtReader({
   bookId,
@@ -49,7 +50,20 @@ export function TxtReader({
     };
   }, [lines, onLocatorChange]);
 
-  if (error) return <div className="error">{error}</div>;
+  if (error) {
+    return (
+      <ErrorBanner
+        title="文本加载失败"
+        description={error}
+        onRetry={() => {
+          setError(null);
+          // Trigger refetch by reloading the location — TxtReader has no
+          // file-level retry hook but localStorage progress is preserved.
+          window.location.reload();
+        }}
+      />
+    );
+  }
   if (!lines) return <div className="empty">加载文本中…</div>;
 
   return (
@@ -80,10 +94,13 @@ export function TxtReader({
           border: "1px solid var(--rule)",
           boxShadow: "var(--shadow-sm)",
           fontFamily: "var(--font-serif)",
-          fontSize: 17,
+          // Apply the runtime font-size knob; cap line width so prose
+          // doesn't sprawl across a 1440px monitor.
+          fontSize: "var(--reader-font-size, 17px)",
           lineHeight: 1.85,
           color: "var(--ink)",
-          margin: 0,
+          margin: "0 auto",
+          maxWidth: "64ch",
         }}
       >
         {lines.join("\n")}

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearToken } from "@/lib/api";
+import { BrandMark } from "./BrandMark";
 
 export function TopBar() {
   const pathname = usePathname() ?? "";
@@ -17,7 +18,10 @@ export function TopBar() {
   return (
     <div className="topbar">
       <Link href="/library" className="brand" aria-label="books">
-        books<span className="dot">.</span>
+        <BrandMark size={26} style={{ flex: "none" }} />
+        <span className="brand-word">
+          books<span className="dot">.</span>
+        </span>
       </Link>
       <nav>
         {navs.map((n) => (

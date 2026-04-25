@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { clearToken, getToken, api } from "@/lib/api";
+import { BrandMark } from "./BrandMark";
 
 const { Header, Sider, Content } = Layout;
 
@@ -61,45 +62,41 @@ const menuItems = [
 function BrandLockup({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
-      <div
-        aria-label="Books admin"
-        style={{
-          fontFamily: "var(--font-serif)",
-          color: "#F5F4EE",
-          fontSize: 22,
-          fontWeight: 600,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        b<span style={{ color: "var(--accent)" }}>.</span>
-      </div>
+      <BrandMark
+        size={28}
+        tone="ink"
+        style={{ display: "block" }}
+      />
     );
   }
   return (
-    <div style={{ display: "grid", gap: 2, lineHeight: 1.1 }}>
-      <span
-        style={{
-          fontFamily: "var(--font-serif)",
-          color: "#F5F4EE",
-          fontSize: 22,
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-        }}
-      >
-        books<span style={{ color: "var(--accent)" }}>.</span>
-      </span>
-      <span
-        style={{
-          fontFamily: "var(--font-sans)",
-          color: "rgba(245, 244, 238, 0.55)",
-          fontSize: 10.5,
-          fontWeight: 500,
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
-        }}
-      >
-        管理后台
-      </span>
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <BrandMark size={28} tone="ink" style={{ flex: "none" }} />
+      <div style={{ display: "grid", gap: 2, lineHeight: 1.1 }}>
+        <span
+          style={{
+            fontFamily: "var(--font-serif)",
+            color: "#F5F4EE",
+            fontSize: 22,
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          books<span style={{ color: "var(--accent)" }}>.</span>
+        </span>
+        <span
+          style={{
+            fontFamily: "var(--font-sans)",
+            color: "rgba(245, 244, 238, 0.55)",
+            fontSize: 10.5,
+            fontWeight: 500,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          管理后台
+        </span>
+      </div>
     </div>
   );
 }
@@ -163,6 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         width={232}
+        breakpoint="md"
       >
         <div
           style={{

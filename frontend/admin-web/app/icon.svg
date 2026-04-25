@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!--
+    books. mark — three book spines stacked on a paper-cream tile, the
+    middle spine in terracotta to mirror the wordmark's accent dot.
+    Designed to read at favicon size (16px) by relying on shape contrast,
+    not detail.
+  -->
+  <rect width="64" height="64" rx="12" fill="#FBF7EE"/>
+  <!-- top spine -->
+  <rect x="11" y="14" width="38" height="10" rx="1.5" fill="#2F2A23"/>
+  <rect x="14.5" y="17.5" width="6" height="1" rx="0.5" fill="#FBF7EE" fill-opacity="0.55"/>
+  <!-- middle spine — accent -->
+  <rect x="9" y="27" width="42" height="10" rx="1.5" fill="#B4502A"/>
+  <circle cx="44" cy="32" r="1.6" fill="#FBF7EE" fill-opacity="0.7"/>
+  <!-- bottom spine -->
+  <rect x="13" y="40" width="38" height="10" rx="1.5" fill="#3A332C"/>
+  <rect x="16.5" y="43.5" width="8" height="1" rx="0.5" fill="#FBF7EE" fill-opacity="0.55"/>
+</svg>

@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { TopBar } from "@/components/TopBar";
 import { BookCard, type BookCardData } from "@/components/BookCard";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { api } from "@/lib/api";
 
 export default function SearchPage() {
@@ -11,19 +13,23 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function runSearch(term: string) {
     setTouched(true);
     setLoading(true);
     setError(null);
     try {
-      const r = await api.search(q);
+      const r = await api.search(term);
       setItems(r.items);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runSearch(q);
   }
 
   return (
@@ -46,10 +52,18 @@ export default function SearchPage() {
             搜索
           </button>
         </form>
-        {error && <div className="error" style={{ marginTop: 20 }}>{error}</div>}
+        {error && (
+          <div style={{ marginTop: 20 }}>
+            <ErrorBanner
+              title="搜索失败"
+              description={error}
+              onRetry={() => runSearch(q)}
+            />
+          </div>
+        )}
         <div style={{ marginTop: 36 }}>
           {loading ? (
-            <div className="empty">搜索中…</div>
+            <SkeletonGrid count={6} />
           ) : !touched ? (
             <div className="empty">输入关键字开始搜索。</div>
           ) : items.length === 0 ? (

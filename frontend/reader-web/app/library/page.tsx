@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { BookCard, type BookCardData } from "@/components/BookCard";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { api } from "@/lib/api";
 
 export default function LibraryPage() {
@@ -11,19 +13,23 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [r, a] = await Promise.all([api.recent(), api.search("")]);
-        setRecent(r.items);
-        setAll(a.items);
-      } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [r, a] = await Promise.all([api.recent(), api.search("")]);
+      setRecent(r.items);
+      setAll(a.items);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <>
@@ -31,9 +37,15 @@ export default function LibraryPage() {
       <div className="shell" style={{ paddingTop: 44, paddingBottom: 96 }}>
         <span className="eyebrow">正在阅读</span>
         <h1 style={{ marginBottom: 24 }}>继续你的故事</h1>
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <ErrorBanner
+            title="书架加载失败"
+            description={error}
+            onRetry={load}
+          />
+        )}
         {loading ? (
-          <div className="empty">加载中…</div>
+          <SkeletonGrid count={6} />
         ) : recent.length === 0 ? (
           <div className="empty">
             书架还空空如也。<Link href="/search">去搜索</Link>一本书开启阅读吧。
@@ -67,7 +79,9 @@ export default function LibraryPage() {
           >
             最新入库
           </h2>
-          {all.length === 0 ? (
+          {loading ? (
+            <SkeletonGrid count={6} />
+          ) : all.length === 0 ? (
             <div className="empty">书库为空。</div>
           ) : (
             <div className="book-grid">

@@ -1,9 +1,11 @@
 "use client";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { Alert, Button, Form, Input } from "antd";
+import { Button, Form, Input } from "antd";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, setToken } from "@/lib/api";
+import { BrandMark } from "@/components/BrandMark";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 /**
  * Decorative pattern for the brand panel — a subtle stack of paper
@@ -166,7 +168,28 @@ export default function LoginPage() {
         }}
       >
         <div style={{ width: "100%", maxWidth: 380 }}>
-          <span className="eyebrow">登录</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <BrandMark size={32} />
+            <span
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: 24,
+                fontWeight: 600,
+                letterSpacing: "-0.012em",
+                color: "var(--ink)",
+                lineHeight: 1,
+              }}
+            >
+              books<span style={{ color: "var(--accent)" }}>.</span>
+            </span>
+          </div>
           <h2
             style={{
               fontFamily: "var(--font-serif)",
@@ -191,10 +214,11 @@ export default function LoginPage() {
           </p>
 
           {error && (
-            <Alert
-              type="error"
-              showIcon
-              message={error}
+            <ErrorBanner
+              title="登录失败"
+              description={error}
+              onRetry={() => setError(null)}
+              retryLabel="清除"
               style={{ marginBottom: 16 }}
             />
           )}

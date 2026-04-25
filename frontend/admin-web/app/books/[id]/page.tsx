@@ -17,6 +17,7 @@ import {
   InputNumber,
   Row,
   Select,
+  Skeleton,
   Space,
   Typography,
   message,
@@ -138,7 +139,21 @@ export default function BookDetailPage() {
   if (!book)
     return (
       <AppShell>
-        <Card loading bordered={false} />
+        <Row gutter={16}>
+          <Col xs={24} md={16}>
+            <Card bordered={false}>
+              <Skeleton active paragraph={{ rows: 6 }} />
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card bordered={false} style={{ marginBottom: 16 }}>
+              <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
+                <Skeleton.Image active style={{ width: 200, height: 280 }} />
+              </div>
+              <Skeleton active paragraph={{ rows: 3 }} title={false} />
+            </Card>
+          </Col>
+        </Row>
       </AppShell>
     );
 
@@ -226,7 +241,11 @@ export default function BookDetailPage() {
                 </Col>
                 <Col span={8}>
                   <Form.Item name="page_count" label="页数">
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber
+                      min={0}
+                      className="numeric"
+                      style={{ width: "100%" }}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -235,13 +254,18 @@ export default function BookDetailPage() {
                       min={0}
                       max={10}
                       step={0.1}
+                      className="numeric"
                       style={{ width: "100%" }}
                     />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item name="rating_count" label="评分人数">
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber
+                      min={0}
+                      className="numeric"
+                      style={{ width: "100%" }}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={24}>
