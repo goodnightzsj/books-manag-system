@@ -5,10 +5,11 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { makeProgressSync, type Locator } from "@/lib/progress";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// The worker file is copied into /public/ by the `prebuild` script (see
+// package.json). Loading it from a static URL avoids Next.js / webpack
+// trying to re-parse the prebundled ESM worker, which fails because it
+// uses top-level import/export inside a string.
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 export function PdfReader({
   bookId,

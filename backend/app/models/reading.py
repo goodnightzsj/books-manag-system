@@ -1,10 +1,10 @@
-from sqlalchemy import Column, String, DateTime, Float, Integer, Text, Enum, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, Float, Integer, Text, JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 import enum
-from app.db.base import Base
+from app.db.base import Base, PgEnum
 
 
 class ReadingStatus(str, enum.Enum):
@@ -26,7 +26,7 @@ class ReadingProgress(Base):
     current_page = Column(Integer)
     total_pages = Column(Integer)
     progress_percent = Column(Float, default=0.0)
-    status = Column(Enum(ReadingStatus), default=ReadingStatus.NOT_STARTED, nullable=False)
+    status = Column(PgEnum(ReadingStatus), default=ReadingStatus.NOT_STARTED, nullable=False)
     locator = Column(JSONB)
     started_at = Column(DateTime)
     finished_at = Column(DateTime)

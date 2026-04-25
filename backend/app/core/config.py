@@ -1,5 +1,6 @@
 from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -30,6 +31,23 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
 
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:19006"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def _split_allowed_origins(cls, value):
+        # Accept three input shapes from the environment:
+        #   - JSON list      (pydantic's default for List[str] from env)
+        #   - comma-separated "a,b,c"
+        #   - already a list (programmatic instantiation in tests)
+        if value is None or isinstance(value, list):
+            return value
+        text = str(value).strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            # Let pydantic's normal JSON parser handle it.
+            return text
+        return [item.strip() for item in text.split(",") if item.strip()]
 
     BOOKS_DIR: str = "/app/books"
     UPLOADS_DIR: str = "/app/uploads"

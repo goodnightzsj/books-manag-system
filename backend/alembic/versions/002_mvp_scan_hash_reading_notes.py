@@ -19,26 +19,39 @@ depends_on = None
 def upgrade():
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-    hash_status_enum = sa.Enum("pending", "done", "failed", "skipped", name="hashstatus")
-    scan_job_type_enum = sa.Enum("scan_directory", "scan_file", "rehash", "resync_metadata", name="scanjobtype")
-    scan_job_status_enum = sa.Enum("queued", "running", "completed", "failed", "partial_success", "cancelled", name="scanjobstatus")
-    scan_item_status_enum = sa.Enum("queued", "processing", "created", "updated", "skipped", "failed", name="scanitemstatus")
+    # Create the four enum types idempotently. Wrapping each in a DO block
+    # with EXCEPTION duplicate_object means partial-failure reruns work and
+    # there is exactly one creation point, after which all column references
+    # use postgresql.ENUM(..., create_type=False) so SQLAlchemy never tries
+    # to re-emit CREATE TYPE.
+    op.execute("""
+    DO $$ BEGIN
+        CREATE TYPE hashstatus AS ENUM ('pending', 'done', 'failed', 'skipped');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN
+        CREATE TYPE scanjobtype AS ENUM ('scan_directory', 'scan_file', 'rehash', 'resync_metadata');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN
+        CREATE TYPE scanjobstatus AS ENUM ('queued', 'running', 'completed', 'failed', 'partial_success', 'cancelled');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN
+        CREATE TYPE scanitemstatus AS ENUM ('queued', 'processing', 'created', 'updated', 'skipped', 'failed');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    """)
 
-    bind = op.get_bind()
-    hash_status_enum.create(bind, checkfirst=True)
-    scan_job_type_enum.create(bind, checkfirst=True)
-    scan_job_status_enum.create(bind, checkfirst=True)
-    scan_item_status_enum.create(bind, checkfirst=True)
-
-    op.add_column("books", sa.Column("content_hash", sa.String(length=128), nullable=True))
-    op.add_column("books", sa.Column("hash_algorithm", sa.String(length=32), nullable=True))
-    op.add_column("books", sa.Column("hash_status", hash_status_enum, nullable=False, server_default="pending"))
-    op.add_column("books", sa.Column("hash_error", sa.Text(), nullable=True))
-    op.add_column("books", sa.Column("file_mtime", sa.DateTime(), nullable=True))
-    op.add_column("books", sa.Column("source_provider", sa.String(length=32), nullable=True))
-    op.add_column("books", sa.Column("metadata_synced_at", sa.DateTime(), nullable=True))
-    op.add_column("books", sa.Column("search_vector", postgresql.TSVECTOR(), nullable=True))
-    op.alter_column("books", "hash_status", server_default=None)
+    # Use raw SQL for column / table creation that involves the enum types.
+    # SQLAlchemy 2.0 / alembic still emits CREATE TYPE for postgresql.ENUM
+    # references even with create_type=False in some pathways, so this
+    # bypass keeps the migration deterministic.
+    op.execute("ALTER TABLE books ADD COLUMN content_hash VARCHAR(128)")
+    op.execute("ALTER TABLE books ADD COLUMN hash_algorithm VARCHAR(32)")
+    op.execute("ALTER TABLE books ADD COLUMN hash_status hashstatus NOT NULL DEFAULT 'pending'")
+    op.execute("ALTER TABLE books ALTER COLUMN hash_status DROP DEFAULT")
+    op.execute("ALTER TABLE books ADD COLUMN hash_error TEXT")
+    op.execute("ALTER TABLE books ADD COLUMN file_mtime TIMESTAMP")
+    op.execute("ALTER TABLE books ADD COLUMN source_provider VARCHAR(32)")
+    op.execute("ALTER TABLE books ADD COLUMN metadata_synced_at TIMESTAMP")
+    op.execute("ALTER TABLE books ADD COLUMN search_vector TSVECTOR")
 
     op.create_index("ix_books_content_hash", "books", ["content_hash"], unique=False)
     op.create_index("ix_books_file_path", "books", ["file_path"], unique=True)
@@ -47,45 +60,42 @@ def upgrade():
     op.execute("CREATE INDEX IF NOT EXISTS ix_books_author_trgm ON books USING gin (author gin_trgm_ops)")
     op.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_books_content_hash_not_null ON books (content_hash) WHERE content_hash IS NOT NULL")
 
-    op.create_table(
-        "scan_jobs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("job_type", scan_job_type_enum, nullable=False),
-        sa.Column("status", scan_job_status_enum, nullable=False, server_default="queued"),
-        sa.Column("requested_path", sa.Text(), nullable=False),
-        sa.Column("normalized_path", sa.Text(), nullable=False),
-        sa.Column("total_items", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("processed_items", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("success_items", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("failed_items", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("skipped_items", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("started_at", sa.DateTime(), nullable=True),
-        sa.Column("finished_at", sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
-        sa.PrimaryKeyConstraint("id"),
-    )
+    op.execute("""
+        CREATE TABLE scan_jobs (
+            id              UUID PRIMARY KEY,
+            job_type        scanjobtype   NOT NULL,
+            status          scanjobstatus NOT NULL DEFAULT 'queued',
+            requested_path  TEXT          NOT NULL,
+            normalized_path TEXT          NOT NULL,
+            total_items     INTEGER       NOT NULL DEFAULT 0,
+            processed_items INTEGER       NOT NULL DEFAULT 0,
+            success_items   INTEGER       NOT NULL DEFAULT 0,
+            failed_items    INTEGER       NOT NULL DEFAULT 0,
+            skipped_items   INTEGER       NOT NULL DEFAULT 0,
+            error_message   TEXT,
+            created_by      UUID REFERENCES users(id),
+            created_at      TIMESTAMP NOT NULL,
+            started_at      TIMESTAMP,
+            finished_at     TIMESTAMP
+        )
+    """)
     op.create_index("ix_scan_jobs_status_created_at", "scan_jobs", ["status", "created_at"], unique=False)
     op.create_index("ix_scan_jobs_created_by", "scan_jobs", ["created_by"], unique=False)
 
-    op.create_table(
-        "scan_job_items",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("job_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("file_path", sa.Text(), nullable=False),
-        sa.Column("file_format", sa.String(length=16), nullable=True),
-        sa.Column("status", scan_item_status_enum, nullable=False, server_default="queued"),
-        sa.Column("book_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("detected_hash", sa.String(length=128), nullable=True),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["job_id"], ["scan_jobs.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["book_id"], ["books.id"]),
-        sa.PrimaryKeyConstraint("id"),
-    )
+    op.execute("""
+        CREATE TABLE scan_job_items (
+            id            UUID PRIMARY KEY,
+            job_id        UUID NOT NULL REFERENCES scan_jobs(id) ON DELETE CASCADE,
+            file_path     TEXT NOT NULL,
+            file_format   VARCHAR(16),
+            status        scanitemstatus NOT NULL DEFAULT 'queued',
+            book_id       UUID REFERENCES books(id),
+            detected_hash VARCHAR(128),
+            error_message TEXT,
+            created_at    TIMESTAMP NOT NULL,
+            updated_at    TIMESTAMP NOT NULL
+        )
+    """)
     op.create_index("ix_scan_job_items_job_id", "scan_job_items", ["job_id"], unique=False)
     op.create_index("ix_scan_job_items_job_id_status", "scan_job_items", ["job_id", "status"], unique=False)
 

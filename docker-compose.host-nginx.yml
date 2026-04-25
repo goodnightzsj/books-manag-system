@@ -1,0 +1,49 @@
+# Overlay for VPS that already runs a host-level nginx terminating TLS for
+# *.9962510.xyz (Cloudflare Origin cert + Authenticated Origin Pulls).
+#
+# Differences vs the base docker-compose.yml:
+#   - Disables the internal `nginx` container.
+#   - Binds api / admin-web / reader-web to 127.0.0.1 on dedicated ports
+#     so the host nginx can reverse-proxy them.
+#   - Uses non-conflicting ports (8002 / 3010 / 3011 / 5433 / 6380) so the
+#     stack coexists with other services already running on this VPS.
+#
+# Usage:
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml \
+#                  -f docker-compose.host-nginx.yml \
+#                  pull && up -d
+#
+# Then drop /etc/nginx/sites/books.9962510.xyz.conf into place and
+# `nginx -t && systemctl reload nginx`.
+
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:6380:6379"
+
+  api:
+    ports: !override
+      - "127.0.0.1:8002:8000"
+    environment:
+      ALLOWED_ORIGINS: '["https://books.9962510.xyz"]'
+
+  admin-web:
+    ports: !override
+      - "127.0.0.1:3010:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE: "https://books.9962510.xyz"
+
+  reader-web:
+    ports: !override
+      - "127.0.0.1:3011:3001"
+    environment:
+      NEXT_PUBLIC_API_BASE: "https://books.9962510.xyz"
+
+  # Host nginx terminates TLS, so the in-stack nginx is redundant.
+  nginx:
+    profiles: ["disabled-by-host-nginx"]

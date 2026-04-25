@@ -20,29 +20,26 @@ depends_on = None
 
 
 def upgrade():
-    hash_status_enum = sa.Enum(
-        "pending", "done", "failed", "skipped", name="hashstatus", create_type=False
-    )
-
-    op.create_table(
-        "book_files",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("book_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("file_path", sa.Text(), nullable=False),
-        sa.Column("file_format", sa.String(length=16), nullable=False),
-        sa.Column("file_size", sa.BigInteger(), nullable=True),
-        sa.Column("file_mtime", sa.DateTime(), nullable=True),
-        sa.Column("content_hash", sa.String(length=128), nullable=True),
-        sa.Column("hash_algorithm", sa.String(length=32), nullable=True),
-        sa.Column("hash_status", hash_status_enum, nullable=False, server_default="pending"),
-        sa.Column("hash_error", sa.Text(), nullable=True),
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("indexed_at", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["book_id"], ["books.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
+    # Raw SQL to avoid SA emitting CREATE TYPE for the existing `hashstatus`
+    # enum (idempotently created by migration 002).
+    op.execute("""
+        CREATE TABLE book_files (
+            id              UUID PRIMARY KEY,
+            book_id         UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            file_path       TEXT NOT NULL,
+            file_format     VARCHAR(16) NOT NULL,
+            file_size       BIGINT,
+            file_mtime      TIMESTAMP,
+            content_hash    VARCHAR(128),
+            hash_algorithm  VARCHAR(32),
+            hash_status     hashstatus NOT NULL DEFAULT 'pending',
+            hash_error      TEXT,
+            is_primary      BOOLEAN NOT NULL DEFAULT TRUE,
+            indexed_at      TIMESTAMP,
+            created_at      TIMESTAMP NOT NULL,
+            updated_at      TIMESTAMP NOT NULL
+        )
+    """)
     op.create_index("ix_book_files_book_id", "book_files", ["book_id"], unique=False)
     op.create_index("ix_book_files_file_path", "book_files", ["file_path"], unique=True)
     op.create_index("ix_book_files_content_hash", "book_files", ["content_hash"], unique=False)

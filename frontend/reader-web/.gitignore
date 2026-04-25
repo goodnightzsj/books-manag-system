@@ -7,3 +7,4 @@ out/
 .DS_Store
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+public/pdf.worker.min.mjs

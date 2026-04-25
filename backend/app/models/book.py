@@ -1,10 +1,10 @@
-from sqlalchemy import Column, String, DateTime, Integer, Float, Text, Enum, JSON, BigInteger, ForeignKey, Table
+from sqlalchemy import Column, String, DateTime, Integer, Float, Text, JSON, BigInteger, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 import enum
-from app.db.base import Base
+from app.db.base import Base, PgEnum
 
 class FileFormat(str, enum.Enum):
     PDF = "pdf"
@@ -42,12 +42,12 @@ class Book(Base):
     description = Column(Text)
     cover_url = Column(String)
     file_path = Column(String, nullable=False)
-    file_format = Column(Enum(FileFormat), nullable=False)
+    file_format = Column(PgEnum(FileFormat), nullable=False)
     file_size = Column(BigInteger)
     file_mtime = Column(DateTime)
     content_hash = Column(String, index=True)
     hash_algorithm = Column(String)
-    hash_status = Column(Enum(HashStatus), default=HashStatus.PENDING, nullable=False)
+    hash_status = Column(PgEnum(HashStatus), default=HashStatus.PENDING, nullable=False)
     hash_error = Column(Text)
     language = Column(String, default="zh")
     page_count = Column(Integer)

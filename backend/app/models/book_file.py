@@ -1,11 +1,11 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.db.base import Base
+from app.db.base import Base, PgEnum
 from app.models.book import HashStatus
 
 
@@ -20,7 +20,7 @@ class BookFile(Base):
     file_mtime = Column(DateTime)
     content_hash = Column(String(128), index=True)
     hash_algorithm = Column(String(32))
-    hash_status = Column(Enum(HashStatus), default=HashStatus.PENDING, nullable=False)
+    hash_status = Column(PgEnum(HashStatus), default=HashStatus.PENDING, nullable=False)
     hash_error = Column(Text)
     is_primary = Column(Boolean, default=True, nullable=False)
     indexed_at = Column(DateTime)

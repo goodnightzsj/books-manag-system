@@ -1,10 +1,10 @@
-from sqlalchemy import Column, String, DateTime, Enum, JSON
+from sqlalchemy import Column, String, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 import enum
-from app.db.base import Base
+from app.db.base import Base, PgEnum
 
 
 class UserRole(str, enum.Enum):
@@ -21,7 +21,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     display_name = Column(String)
     avatar_url = Column(String)
-    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    role = Column(PgEnum(UserRole), default=UserRole.USER, nullable=False)
     preferences = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime)
