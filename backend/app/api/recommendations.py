@@ -123,5 +123,22 @@ def get_similar_books(
     if not filters:
         return []
 
-    similar_books = query.filter(or_(*filters)).distinct().order_by(Book.rating.desc().nullslast()).limit(count).all()
+    # `.distinct()` would force PG to emit DISTINCT on every selected
+    # column, including the JSON `tags`/`book_metadata` columns which
+    # have no equality operator in PostgreSQL ("could not identify an
+    # equality operator for type json"). Dedup on `id` instead via a
+    # subquery so the JSON fields never participate in DISTINCT.
+    similar_ids = (
+        query.filter(or_(*filters))
+        .with_entities(Book.id)
+        .distinct()
+        .subquery()
+    )
+    similar_books = (
+        db.query(Book)
+        .filter(Book.id.in_(similar_ids))
+        .order_by(Book.rating.desc().nullslast())
+        .limit(count)
+        .all()
+    )
     return similar_books
