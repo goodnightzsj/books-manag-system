@@ -19,6 +19,9 @@ coverage.xml
 htmlcov/
 dist/
 .dist/
+# the desktop-shell ships a tiny static index.html as Tauri's frontendDist
+!apps/desktop-shell/dist/
+!apps/desktop-shell/dist/**
 build/
 .eggs/
 *.egg-info/
