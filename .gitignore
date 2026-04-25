@@ -40,3 +40,4 @@ celerybeat-schedule
 .idea/
 .vscode/
 .ace-tool/
+.claude/scheduled_tasks.lock

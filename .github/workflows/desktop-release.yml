@@ -74,15 +74,9 @@ jobs:
             build-essential \
             curl wget file patchelf
 
-      # Reader-web is the embedded UI. tauri.conf.json points at it via
-      # ../../frontend/reader-web; install + build it first.
-      - name: Install reader-web deps
-        working-directory: frontend/reader-web
-        run: npm install --no-audit --no-fund
-
-      - name: Build reader-web
-        working-directory: frontend/reader-web
-        run: npm run build
+      # The desktop shell loads the live web app at https://books.9962510.xyz
+      # (see tauri.conf.json `app.windows[0].url`). The bundled `dist/` only
+      # ships a fallback redirect HTML, so no Next.js build is required here.
 
       - name: Install desktop shell deps
         working-directory: apps/desktop-shell

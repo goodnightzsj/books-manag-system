@@ -2,5 +2,5 @@ node_modules/
 src-tauri/target/
 src-tauri/WixTools/
 src-tauri/gen/
-dist/
 *.log
+# dist/index.html IS committed — see /apps/desktop-shell/dist/

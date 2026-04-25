@@ -4,15 +4,13 @@
   "version": "0.1.0",
   "identifier": "com.books.reader.desktop",
   "build": {
-    "beforeDevCommand": "cd ../../frontend/reader-web && npm run dev",
-    "beforeBuildCommand": "cd ../../frontend/reader-web && npm run build",
-    "devUrl": "http://localhost:3001",
-    "frontendDist": "../../frontend/reader-web/.next"
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "title": "Books Reader",
+        "url": "https://books.9962510.xyz/",
         "width": 1200,
         "height": 820,
         "resizable": true,
