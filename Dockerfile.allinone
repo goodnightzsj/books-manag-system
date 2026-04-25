@@ -1,0 +1,114 @@
+# syntax=docker/dockerfile:1.7
+#
+# All-in-one image: backend + admin-web + reader-web + nginx + supervisor.
+# Designed for "3 container" deployments (postgres + redis + this).
+#
+# Build context = repo root.
+# Stages:
+#   1. py-builder   : compile Python wheels (build deps removed afterwards)
+#   2. admin-build  : npm ci + next build for frontend/admin-web
+#   3. reader-build : npm ci + next build for frontend/reader-web
+#   4. final        : python:3.11-slim + node + nginx + supervisor + artefacts
+
+# ---------- 1) python wheels ----------
+FROM python:3.11-slim AS py-builder
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY backend/requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+# ---------- 2) admin-web ----------
+FROM node:20-alpine AS admin-build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY frontend/admin-web/package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; \
+    else npm install --no-audit --no-fund; fi
+COPY frontend/admin-web/ ./
+RUN mkdir -p public && npm run build
+
+# ---------- 3) reader-web ----------
+FROM node:20-alpine AS reader-build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY frontend/reader-web/package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; \
+    else npm install --no-audit --no-fund; fi
+COPY frontend/reader-web/ ./
+RUN mkdir -p public && npm run build
+
+# ---------- 4) final ----------
+FROM python:3.11-slim
+WORKDIR /app
+
+# Pull in node binary from the official node image so we don't have to
+# `apt-get install nodejs` (which drags in 300MB of extras). We only need
+# `node` to run two pre-built Next.js standalone servers.
+COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
+
+# Runtime apt deps:
+#   libpq5            -> psycopg2 driver
+#   nginx-light       -> reverse proxy (smaller variant, no fancy modules)
+#   supervisor        -> process manager
+#   tini              -> reaps Celery's short-lived child workers
+#   gosu              -> switch user inside entrypoint without exec'ing sudo
+#   binutils          -> `strip` for shrinking native .so (purged after use)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 nginx-light supervisor tini gosu binutils \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 books \
+    && useradd --uid 1000 --gid books --create-home --shell /usr/sbin/nologin books \
+    && mkdir -p /var/log/nginx /var/lib/nginx /run/nginx \
+    && rm -f /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default
+
+# Backend wheels + aggressive prune (same recipe as backend slim image)
+COPY --from=py-builder /wheels /wheels
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --no-index --no-compile --find-links=/wheels -r /tmp/requirements.txt \
+    && python -m pip uninstall -y pip setuptools wheel || true \
+    && SP=$(python -c "import site;print(site.getsitepackages()[0])") \
+    && find "$SP" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true \
+    && find "$SP" -type d -name 'tests'       -exec rm -rf {} + 2>/dev/null || true \
+    && find "$SP" -type d -name 'test'        -exec rm -rf {} + 2>/dev/null || true \
+    && find "$SP" -type d -name 'examples'    -exec rm -rf {} + 2>/dev/null || true \
+    && find "$SP" -type f -name '*.pyi'       -delete 2>/dev/null || true \
+    && find "$SP" -type f -name '*.pyc'       -delete 2>/dev/null || true \
+    && find "$SP" -type f -name 'py.typed'    -delete 2>/dev/null || true \
+    && find "$SP" -type f -name '*.so'        -exec strip --strip-unneeded {} + 2>/dev/null || true \
+    && apt-get purge -y --auto-remove binutils \
+    && rm -rf /wheels /tmp/* /root/.cache \
+              /usr/share/man /usr/share/doc /usr/share/doc-base /usr/share/info \
+              /usr/local/lib/python3.11/ensurepip
+
+# Backend source
+COPY backend/ /app/
+
+# Admin / reader Next.js standalone bundles
+COPY --from=admin-build  /app/.next/standalone/  /app/admin-web/
+COPY --from=admin-build  /app/.next/static/      /app/admin-web/.next/static/
+COPY --from=admin-build  /app/public/            /app/admin-web/public/
+COPY --from=reader-build /app/.next/standalone/  /app/reader-web/
+COPY --from=reader-build /app/.next/static/      /app/reader-web/.next/static/
+COPY --from=reader-build /app/public/            /app/reader-web/public/
+
+# Runtime config
+COPY infra/runtime/supervisord.conf       /etc/supervisord.conf
+COPY infra/runtime/nginx-internal.conf    /etc/nginx/nginx.conf
+COPY infra/runtime/entrypoint-allinone.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh \
+    && mkdir -p /app/books /app/uploads \
+    && chown -R books:books /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 80
+
+# supervisord runs as root so it can bind :80 (nginx) and switch user for
+# python/node processes. tini reaps zombies for the long-running stack.
+ENTRYPOINT ["/entrypoint.sh"]

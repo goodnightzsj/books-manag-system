@@ -51,6 +51,13 @@ jobs:
             context: frontend/reader-web
             dockerfile: frontend/reader-web/Dockerfile
             repo_suffix: reader-web
+          # `all-in-one` bundles backend + admin-web + reader-web + nginx +
+          # supervisord into a single image for "3 container" deployments
+          # (postgres + redis + this). Build context is the repo root.
+          - name: allinone
+            context: .
+            dockerfile: Dockerfile.allinone
+            repo_suffix: allinone
     env:
       DOCKERHUB_USERNAME_VAR: ${{ vars.DOCKERHUB_USERNAME }}
       DOCKERHUB_USERNAME_SECRET: ${{ secrets.DOCKERHUB_USERNAME }}
