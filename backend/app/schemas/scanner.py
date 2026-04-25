@@ -2,12 +2,9 @@ from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
-
-ScanJobType = Literal["scan_directory", "scan_file", "rehash", "resync_metadata"]
-ScanJobStatus = Literal["queued", "running", "completed", "failed", "partial_success", "cancelled"]
-ScanItemStatus = Literal["queued", "processing", "created", "updated", "skipped", "failed"]
+from app.models.scan_job import ScanItemStatus, ScanJobStatus, ScanJobType
 
 
 class ScanDirectoryRequest(BaseModel):
@@ -22,6 +19,10 @@ class ScanJobCreatedResponse(BaseModel):
     job_id: UUID
     status: ScanJobStatus
     message: str
+
+    @field_serializer("status")
+    def _ser_status(self, v: ScanJobStatus) -> str:
+        return v.value if hasattr(v, "value") else v
 
 
 class ScanJobResponse(BaseModel):
@@ -42,6 +43,7 @@ class ScanJobResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        use_enum_values = True
 
 
 class ScanJobListResponse(BaseModel):
@@ -63,6 +65,7 @@ class ScanJobItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        use_enum_values = True
 
 
 class ScanJobItemListResponse(BaseModel):
@@ -74,6 +77,10 @@ class ScanJobActionResponse(BaseModel):
     job_id: UUID
     status: ScanJobStatus
     message: str
+
+    @field_serializer("status")
+    def _ser_status(self, v: ScanJobStatus) -> str:
+        return v.value if hasattr(v, "value") else v
 
 
 class BookTaskEnqueuedResponse(BaseModel):
