@@ -20,21 +20,37 @@ logger = logging.getLogger(__name__)
 try:  # pragma: no cover
     from prometheus_client import (
         CONTENT_TYPE_LATEST,
+        REGISTRY,
         Counter,
         Histogram,
         generate_latest,
     )
 
-    _HTTP_REQUESTS = Counter(
+    def _safe_counter(name, doc, labels):
+        # importlib.reload() in tests re-runs this module; prometheus
+        # complains "Duplicated timeseries" because the previous Counter
+        # is still registered. Detect and reuse so reloads stay green.
+        existing = REGISTRY._names_to_collectors.get(name)
+        if existing is not None:
+            return existing
+        return Counter(name, doc, labels)
+
+    def _safe_histogram(name, doc, labels, buckets):
+        existing = REGISTRY._names_to_collectors.get(name)
+        if existing is not None:
+            return existing
+        return Histogram(name, doc, labels, buckets=buckets)
+
+    _HTTP_REQUESTS = _safe_counter(
         "books_http_requests_total",
         "Total HTTP requests",
         ["method", "route", "status"],
     )
-    _HTTP_LATENCY = Histogram(
+    _HTTP_LATENCY = _safe_histogram(
         "books_http_request_duration_seconds",
         "HTTP request latency in seconds",
         ["method", "route"],
-        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+        (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
     )
     _PROM_AVAILABLE = True
 except ImportError:  # pragma: no cover

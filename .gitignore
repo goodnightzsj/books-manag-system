@@ -25,6 +25,11 @@ build/
 pip-wheel-metadata/
 .env
 .env.*
+# but DO track the public templates committed to the repo
+!.env.example
+!infra/deploy/systemd/books.env.example
+!frontend/admin-web/.env.example
+!frontend/reader-web/.env.example
 backend/uploads/
 backend/books/
 celerybeat-schedule

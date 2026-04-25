@@ -14,7 +14,10 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Ensure /app/public exists even when the source tree did not check one
+# in (so the final stage's COPY --from=builder /app/public never fails).
+RUN mkdir -p public \
+    && npm run build
 
 
 FROM node:20-alpine
