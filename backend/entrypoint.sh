@@ -3,31 +3,41 @@ set -e
 
 ROLE="${APP_ROLE:-api}"
 
+# Pure-Python TCP probes — no `postgresql-client` apt package needed.
+# Hostnames `postgres` and `redis` come from the docker network.
 wait_for_postgres() {
   echo "Waiting for PostgreSQL..."
-  while ! pg_isready -h postgres -U books_user -d books_db > /dev/null 2>&1; do
-    sleep 1
-  done
+  python - <<'PY'
+import os, socket, sys, time
+host = "postgres"
+port = 5432
+for _ in range(60):
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            sys.exit(0)
+    except OSError:
+        time.sleep(1)
+print("PostgreSQL not reachable after 60s", file=sys.stderr)
+sys.exit(1)
+PY
   echo "PostgreSQL is ready"
 }
 
 wait_for_redis() {
   echo "Waiting for Redis..."
-  python -c "
-import redis
-import sys
-import time
-
-for i in range(30):
+  python - <<'PY'
+import socket, sys, time
+host = "redis"
+port = 6379
+for _ in range(30):
     try:
-        redis.Redis(host='redis', port=6379, socket_connect_timeout=1).ping()
-        break
-    except Exception:
-        if i == 29:
-            print('Redis connection failed after 30 attempts')
-            sys.exit(1)
+        with socket.create_connection((host, port), timeout=1):
+            sys.exit(0)
+    except OSError:
         time.sleep(1)
-"
+print("Redis not reachable after 30s", file=sys.stderr)
+sys.exit(1)
+PY
   echo "Redis is ready"
 }
 

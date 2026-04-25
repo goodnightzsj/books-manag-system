@@ -59,18 +59,25 @@ class CoverService:
         return None
 
     def extract_cover_from_pdf(self, pdf_path: str, book_id: str) -> str | None:
+        # `pypdf` replaces PyMuPDF here (saves ~80 MB on disk). PDF first-page
+        # rendering uses pypdf -> Pillow round trip:
+        #   1. Read first XObject image embedded in page 1 (cheap, common).
+        #   2. If none, ask Pillow to rasterize via the page's content stream
+        #      isn't supported by pure Python; fall back to "no cover" -- the
+        #      online metadata sync will usually back-fill `cover_url` anyway.
         try:
-            import fitz
+            from pypdf import PdfReader
 
-            document = fitz.open(pdf_path)
-            if len(document) == 0:
+            reader = PdfReader(pdf_path)
+            if len(reader.pages) == 0:
                 return None
-            page = document[0]
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            cover_path = self.covers_dir / f"{book_id}_cover.png"
-            pix.save(cover_path)
-            self._generate_thumbnail(cover_path, book_id)
-            return f"/uploads/covers/{cover_path.name}"
+            page = reader.pages[0]
+            for image in getattr(page, "images", []):
+                cover_path = self.covers_dir / f"{book_id}_cover.png"
+                cover_path.write_bytes(image.data)
+                self._generate_thumbnail(cover_path, book_id)
+                return f"/uploads/covers/{cover_path.name}"
+            return None
         except Exception as exc:
             logger.error("Error extracting PDF cover: %s", exc)
             return None

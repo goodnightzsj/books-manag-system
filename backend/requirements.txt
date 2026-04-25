@@ -1,14 +1,14 @@
-# FastAPI and Web Framework
+# FastAPI and Web Framework -- plain `uvicorn` (no [standard]) drops uvloop
+# (~14 MB) / httptools / watchfiles. Single-worker async server is enough.
 fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+uvicorn==0.27.0
 
 # Database
 sqlalchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
-# Redis
+# Redis (Celery broker + optional cache / rate limiter)
 redis==5.0.1
 hiredis==2.3.2
 
@@ -16,31 +16,28 @@ hiredis==2.3.2
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
-bcrypt==4.0.1  # Downgraded to 4.0.1 for compatibility with passlib
+bcrypt==4.0.1
 
 # Pydantic
 pydantic==2.5.3
 pydantic-settings==2.1.0
 email-validator==2.1.0
 
-# File Processing and Metadata
+# File / metadata extraction.
+#   - `pypdf` replaces both PyPDF2 (text/meta) and PyMuPDF (cover render),
+#     saving ~80 MB of native fitz binaries.
+#   - `pdfplumber`, `flower`, `requests`, `python-multipart`, `python-magic`
+#     used to be here but were never imported -- dropped.
 ebookmeta==1.2.6
-PyPDF2==3.0.1
-pdfplumber==0.10.3
-# python-magic-bin==0.4.14  # Windows only, not needed in Linux
+pypdf==4.3.1
 Pillow==10.2.0
-PyMuPDF==1.23.8
 
-# HTTP Client
+# HTTP Client (httpx covers everything; `requests` was unused).
 httpx==0.26.0
-requests==2.31.0
 
-# Celery and Task Queue
+# Celery (no flower web UI -- saves tornado).
 celery==5.3.6
-flower==2.0.1
 kombu==5.3.5
-
-# Data Science (for recommendations)
 
 # Utilities
 python-dateutil==2.8.2
