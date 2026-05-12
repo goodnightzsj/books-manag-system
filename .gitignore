@@ -44,3 +44,9 @@ celerybeat-schedule
 .vscode/
 .ace-tool/
 .claude/scheduled_tasks.lock
+# --- trellis local (do not commit) ---
+.trellis/
+.claude/
+.agents/
+AGENTS.md
+.codex/

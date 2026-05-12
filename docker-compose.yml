@@ -16,10 +16,29 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /run/postgresql:size=32m
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    pids_limit: 200
+    mem_limit: 1g
 
   redis:
     image: redis:7-alpine
     container_name: books-redis
+    # NB: don't pin `user:` here — the redis_data named volume is created
+    # root-owned, so a non-root uid can't write appendonly.aof and the
+    # container crash-loops. cap_drop + no-new-privileges still apply.
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -31,6 +50,12 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 256m
 
   api:
     build:
@@ -63,6 +88,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 300
+    mem_limit: 512m
 
   worker:
     build:
@@ -88,6 +119,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 300
+    mem_limit: 512m
 
   beat:
     build:
@@ -107,6 +144,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 256m
 
   admin-web:
     build:
@@ -120,6 +163,12 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 384m
 
   reader-web:
     build:
@@ -133,6 +182,12 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 384m
 
   nginx:
     image: nginx:1.27-alpine

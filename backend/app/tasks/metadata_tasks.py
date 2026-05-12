@@ -24,6 +24,11 @@ def sync_book_metadata(book_id: str, force: bool = False):
 
         db.commit()
 
+        # Refresh the search index AFTER the metadata commit so an FTS/Meili
+        # hiccup can't roll back the freshly-fetched fields.
+        if result.found:
+            MetadataSyncService(db, google_api_key=settings.GOOGLE_BOOKS_API_KEY).refresh_search_index(book_uuid)
+
         if result.found:
             try:
                 TaskDispatchService().enqueue_cover_sync(

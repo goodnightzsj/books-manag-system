@@ -287,7 +287,15 @@ class BookIngestService:
 
     def _merge_book_fields(self, canonical: Book, duplicate: Book) -> None:
         if not Path(canonical.file_path).exists() and Path(duplicate.file_path).exists():
-            canonical.file_path = duplicate.file_path
+            taken_path = duplicate.file_path
+            # The duplicate row is deleted at the end of the merge, but
+            # SQLAlchemy's unit of work flushes UPDATEs before DELETEs — so
+            # assigning canonical.file_path = duplicate.file_path here would
+            # transiently violate the books.file_path UNIQUE index. Park the
+            # duplicate's path under a throwaway value (and flush) first.
+            duplicate.file_path = f"__merged__:{duplicate.id}:{taken_path}"
+            self.db.flush()
+            canonical.file_path = taken_path
             canonical.file_format = duplicate.file_format
             canonical.file_size = duplicate.file_size
             canonical.file_mtime = duplicate.file_mtime

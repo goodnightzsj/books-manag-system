@@ -16,16 +16,40 @@ logger = logging.getLogger(__name__)
 
 
 class MetadataExtractor:
+    # Keys that map to nullable, possibly-unique book columns: an empty string
+    # there (very common for EPUBs without an ISBN) would otherwise be stored
+    # verbatim and the *second* such book hits a UNIQUE violation on isbn='' /
+    # blanks out the title instead of falling back to the filename.
+    _NULLABLE_STR_KEYS = ("title", "author", "description", "publisher", "isbn", "subject", "language")
+
     def extract(self, file_path: str, file_ext: str) -> dict[str, Any]:
         if file_ext == ".pdf":
-            return self._extract_pdf(file_path)
-        if file_ext == ".epub":
-            return self._extract_epub(file_path)
-        if file_ext == ".mobi":
-            return self._extract_mobi(file_path)
-        if file_ext == ".txt":
-            return self._extract_txt(file_path)
-        return self._extract_basic(file_path)
+            metadata = self._extract_pdf(file_path)
+        elif file_ext == ".epub":
+            metadata = self._extract_epub(file_path)
+        elif file_ext == ".mobi":
+            metadata = self._extract_mobi(file_path)
+        elif file_ext == ".txt":
+            metadata = self._extract_txt(file_path)
+        else:
+            metadata = self._extract_basic(file_path)
+        return self._normalize(metadata)
+
+    def _normalize(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        for key in self._NULLABLE_STR_KEYS:
+            if key in metadata:
+                value = metadata[key]
+                if value is None:
+                    del metadata[key]
+                elif isinstance(value, str):
+                    stripped = value.strip()
+                    if stripped:
+                        metadata[key] = stripped
+                    else:
+                        # Drop the key so the ingest layer's fallback (filename
+                        # for title, NULL for the rest) kicks in.
+                        del metadata[key]
+        return metadata
 
     def _extract_pdf(self, file_path: str) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
@@ -261,6 +285,27 @@ class MetadataSyncService:
         self.online_service = online_service or OnlineMetadataService()
         self.google_api_key = google_api_key
 
+    def refresh_search_index(self, book_id: UUID) -> None:
+        """Refresh the FTS vector + Meili doc for a book — call AFTER commit.
+
+        A stale search index is tolerable (next scan/maintenance repairs it)
+        and must never undo a committed metadata write, so failures here are
+        swallowed.
+        """
+        book = self.db.query(Book).filter(Book.id == book_id).first()
+        if not book:
+            return
+        try:
+            BookSearchService(self.db).refresh_document(book.id)
+            self.db.commit()
+        except Exception:
+            logger.warning("Failed to refresh FTS vector for book %s", book_id, exc_info=True)
+            self.db.rollback()
+        try:
+            MeiliSearchService().upsert_book(book)
+        except Exception:  # Meili is best-effort
+            logger.warning("Failed to upsert book %s into Meilisearch", book_id, exc_info=True)
+
     def sync_book(self, book_id: UUID, *, force: bool = False) -> MetadataSyncResult | None:
         book = self.db.query(Book).filter(Book.id == book_id).first()
         if not book:
@@ -303,8 +348,10 @@ class MetadataSyncService:
         book.book_metadata = merged_metadata
         book.source_provider = provider
         book.metadata_synced_at = datetime.utcnow()
-        BookSearchService(self.db).refresh_document(book.id)
-        MeiliSearchService().upsert_book(book)
+        # NB: the FTS / Meili refresh is deliberately NOT done here — it issues
+        # its own DB UPDATE and a network call; doing it pre-commit means any
+        # failure rolls back the freshly-fetched metadata. The caller refreshes
+        # the index after commit (see refresh_search_index / metadata_tasks).
 
         cover_source_url = metadata.get("cover_url") if self._has_value(metadata.get("cover_url")) else None
         return MetadataSyncResult(

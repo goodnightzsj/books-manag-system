@@ -18,12 +18,17 @@ app = FastAPI(
 # CORS configuration
 allowed_origins = settings.ALLOWED_ORIGINS
 if isinstance(allowed_origins, str):
-    allowed_origins = [origin.strip() for origin in allowed_origins.split(",")]
+    allowed_origins = [origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
 
+# `allow_origins=["*"]` + `allow_credentials=True` makes Starlette reflect any
+# Origin back with Access-Control-Allow-Credentials — a credentialed CORS bypass
+# from any site. The API authenticates via Authorization: Bearer (no cookies),
+# so when the operator opts into a wildcard we keep "*" but drop credentials.
+_wildcard = (not allowed_origins) or ("*" in allowed_origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if allowed_origins and allowed_origins != ["*"] else ["*"],
-    allow_credentials=True,
+    allow_origins=["*"] if _wildcard else allowed_origins,
+    allow_credentials=not _wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
