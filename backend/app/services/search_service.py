@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Text, cast, func, or_, select
+from sqlalchemy import Text, case, cast, func, or_, select
 from sqlalchemy.orm import Query, Session
 
 from app.models.book import Book, Category, FileFormat, book_category
@@ -51,7 +51,10 @@ class BookSearchService:
         # use it as the candidate provider. PG still runs filters + ordering.
         meili_ids: list[UUID] | None = None
         if normalized_q and self.meili.is_enabled:
-            hits = self.meili.search(normalized_q, limit=max(page * page_size * 2, 200))
+            # Meili's default maxTotalHits is 1000; asking for more silently
+            # truncates anyway, so cap the candidate window there.
+            meili_limit = min(max(page * page_size + page_size, 200), 1000)
+            hits = self.meili.search(normalized_q, limit=meili_limit)
             meili_ids = []
             for h in hits:
                 raw = h.get("id")
@@ -63,6 +66,14 @@ class BookSearchService:
                     continue
             if meili_ids:
                 query = query.filter(Book.id.in_(meili_ids))
+                # Preserve Meili's relevance order: first hit gets the highest
+                # rank. Otherwise the result fell through to ORDER BY updated_at
+                # (i.e. Meili made search *worse* than plain PG FTS).
+                n = len(meili_ids)
+                rank_expr = case(
+                    *[(Book.id == mid, n - i) for i, mid in enumerate(meili_ids)],
+                    else_=0,
+                )
             else:
                 return [], 0
         elif normalized_q:

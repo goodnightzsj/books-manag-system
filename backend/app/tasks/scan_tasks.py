@@ -29,6 +29,7 @@ def run_directory_job(job_id: str):
             scan_jobs.maybe_finalize_job(job.id)
         return str(job.id)
     except Exception as exc:
+        db.rollback()  # clear any failed-transaction state before recording the failure
         ScanJobService(db).mark_job_failed(UUID(job_id), str(exc))
         raise
     finally:
@@ -52,6 +53,7 @@ def run_file_job(job_id: str):
             scan_jobs.maybe_finalize_job(job.id)
         return str(job.id)
     except Exception as exc:
+        db.rollback()  # clear any failed-transaction state before recording the failure
         ScanJobService(db).mark_job_failed(UUID(job_id), str(exc))
         raise
     finally:

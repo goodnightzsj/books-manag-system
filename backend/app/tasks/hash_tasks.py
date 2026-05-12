@@ -30,14 +30,16 @@ def compute_book_hash(book_id: str, item_id: str | None = None):
         db.commit()
         return str(resolved_book.id)
     except Exception as exc:
+        # The failing op may have left the session in a failed-transaction
+        # state; roll back before reusing it, otherwise the FAILED update
+        # itself raises and the book stays stuck PENDING.
+        db.rollback()
         error_message = HashService().classify_error(exc)
         book = db.query(Book).filter(Book.id == UUID(book_id)).first()
         if book:
             book.hash_status = HashStatus.FAILED
             book.hash_error = error_message
             db.commit()
-        else:
-            db.rollback()
         raise
     finally:
         db.close()

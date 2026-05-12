@@ -4,7 +4,11 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import settings
 
-engine = create_engine(settings.DATABASE_URL)
+# pool_pre_ping: validate a pooled connection before handing it out, so a
+# server-side idle timeout / restart (PG, pgbouncer, RDS) surfaces as a
+# transparent reconnect instead of "server closed the connection" 500s.
+# pool_recycle: proactively drop connections older than 30 min.
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

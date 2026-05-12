@@ -55,8 +55,15 @@ export function PdfReader({
         status: page >= numPages ? "completed" : "reading",
       });
     }
-    return () => sync.current.flushNow();
+    // NOTE: no flushNow() in this effect's cleanup — it re-runs on every page
+    // change, so flushing here defeats the debounce (1 PUT /reading-progress
+    // per page flipped). The mount-scoped effect below flushes on unmount.
   }, [page, numPages, onLocatorChange]);
+
+  useEffect(() => {
+    const s = sync.current;
+    return () => s.flushNow();
+  }, []);
 
   const width: ZoomStep = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, zoomIdx))];
   const renderWidth = Math.min(width, maxWidth);
