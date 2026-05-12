@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 
 from app.db.base import get_db
-from app.schemas.category import Category as CategorySchema, CategoryCreate
+from app.schemas.category import Category as CategorySchema, CategoryCreate, CategoryBooksResponse
 from app.models.book import Category, Book, book_category
 from app.models.user import User
 from app.api.deps import get_current_user, require_admin
@@ -75,7 +75,7 @@ def delete_category(
     db.commit()
 
 
-@router.get("/{category_id}/books")
+@router.get("/{category_id}/books", response_model=CategoryBooksResponse)
 def get_category_books(
     category_id: UUID,
     page: int = Query(1, ge=1),

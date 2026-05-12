@@ -16,6 +16,7 @@ import logging
 import time
 from typing import Optional
 
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -53,9 +54,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         key = self._bucket_key(request)
         try:
-            count = self._redis.incr(key)
-            if count == 1:
-                self._redis.expire(key, self.window)
+            # redis-py is sync — run it off the event loop so a single
+            # slow/blocked Redis op doesn't stall every other request.
+            count = await run_in_threadpool(self._incr_with_ttl, key)
         except Exception as exc:  # pragma: no cover
             logger.debug("rate-limit redis op failed, fail-open: %s", exc)
             return await call_next(request)
@@ -70,6 +71,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Limit"] = str(self.per_minute)
         response.headers["X-RateLimit-Remaining"] = str(max(0, self.per_minute - int(count)))
         return response
+
+    def _incr_with_ttl(self, key: str) -> int:
+        count = self._redis.incr(key)
+        if count == 1:
+            self._redis.expire(key, self.window)
+        return int(count)
 
     def _bucket_key(self, request: Request) -> str:
         auth = request.headers.get("authorization", "")
