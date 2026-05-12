@@ -6,9 +6,45 @@
 
 ## 界面预览
 
-| 管理后台（admin-web） | 读者端（reader-web） |
-|---|---|
-| ![Admin Web](docs/screenshots/admin-login.png) | ![Reader Web](docs/screenshots/reader-login.png) |
+管理后台主控台 — 图书 / 分类 / 任务概览与近任务健康度：
+
+![Admin Dashboard](docs/screenshots/admin-dashboard.png)
+
+<details>
+<summary>更多管理后台截图（图书管理 / 图书详情 / 扫描任务 / 分类管理 / 登录）</summary>
+
+### 图书管理（书名 / 作者 / 格式 / HASH 校验状态 / 评分，支持搜索）
+![Admin · Books](docs/screenshots/admin-books.png)
+
+### 图书详情（基本信息编辑、封面与文件、分类关联、元数据同步）
+![Admin · Book Detail](docs/screenshots/admin-book-detail.png)
+
+### 扫描任务（在 `BOOKS_DIR` 内选目录发起后台扫描，进度 / OK / 失败 / 重试）
+![Admin · Scanner](docs/screenshots/admin-scanner.png)
+
+### 分类管理
+![Admin · Categories](docs/screenshots/admin-categories.png)
+
+### 管理后台登录
+![Admin · Login](docs/screenshots/admin-login.png)
+
+</details>
+
+<details>
+<summary>读者端截图（书架 / 搜索 / 登录）</summary>
+
+### 书架（继续阅读 + 最新入库封面墙）
+![Reader · Library](docs/screenshots/reader-library.png)
+
+### 搜索书库（书名 / 作者 / ISBN / 标签）
+![Reader · Search](docs/screenshots/reader-search.png)
+
+### 读者端登录
+![Reader · Login](docs/screenshots/reader-login.png)
+
+</details>
+
+> 截图中的示例书目（朝花夕拾 / 背影 / 荷塘月色）为公版文本，仅用于演示扫描入库与阅读链路。
 
 ## 功能概览
 
