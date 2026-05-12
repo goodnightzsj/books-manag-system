@@ -45,11 +45,14 @@ def create_bookmark(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return BookmarkService(db).create(
-        book_id=book_id,
-        user=current_user,
-        payload=payload.model_dump(exclude_unset=True),
-    )
+    try:
+        return BookmarkService(db).create(
+            book_id=book_id,
+            user=current_user,
+            payload=payload.model_dump(exclude_unset=True),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.put(
@@ -113,11 +116,14 @@ def create_annotation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return AnnotationService(db).create(
-        book_id=book_id,
-        user=current_user,
-        payload=payload.model_dump(exclude_unset=True),
-    )
+    try:
+        return AnnotationService(db).create(
+            book_id=book_id,
+            user=current_user,
+            payload=payload.model_dump(exclude_unset=True),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.put(

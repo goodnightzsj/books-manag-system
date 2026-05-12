@@ -23,6 +23,12 @@ export async function apiFetch<T = unknown>(
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`/api/v1${path}`, { ...init, headers });
+  if (res.status === 401 && token && typeof window !== "undefined") {
+    // Token rejected (expired/revoked): drop it and reload so the auth guard
+    // sends the user back to login instead of leaving a broken page.
+    clearToken();
+    window.location.reload();
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`${res.status} ${res.statusText}: ${text}`);

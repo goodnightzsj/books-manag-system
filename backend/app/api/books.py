@@ -1,8 +1,9 @@
+import logging
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
@@ -13,6 +14,8 @@ from app.models.user import User
 from app.schemas.book import Book as BookSchema, BookCreate, BookList, BookUpdate
 from app.services.meilisearch_service import MeiliSearchService
 from app.services.search_service import BookSearchService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/books", tags=["Books"])
 
@@ -26,6 +29,25 @@ def _raise_integrity_error(exc: IntegrityError) -> None:
     else:
         detail = "Book violates a unique constraint"
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
+
+
+def _refresh_search_index(db: Session, book: Book) -> None:
+    """Refresh the Postgres FTS vector and the Meilisearch document for a book.
+
+    Runs *after* the main transaction has committed: a stale search index is
+    tolerable (the next scan or a maintenance pass repairs it) and must never
+    turn a successful create/update into a 5xx.
+    """
+    try:
+        BookSearchService(db).refresh_document(book.id)
+        db.commit()
+    except SQLAlchemyError:
+        logger.warning("Failed to refresh FTS vector for book %s", book.id, exc_info=True)
+        db.rollback()
+    try:
+        MeiliSearchService().upsert_book(book)
+    except Exception:  # pragma: no cover - Meili is best-effort
+        logger.warning("Failed to upsert book %s into Meilisearch", book.id, exc_info=True)
 
 
 @router.get("", response_model=BookList)
@@ -80,18 +102,15 @@ def create_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    search_service = BookSearchService(db)
     book = Book(**book_data.model_dump())
     db.add(book)
     try:
-        db.flush()
-        search_service.refresh_document(book.id)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         _raise_integrity_error(exc)
     db.refresh(book)
-    MeiliSearchService().upsert_book(book)
+    _refresh_search_index(db, book)
     return book
 
 
@@ -114,13 +133,12 @@ def update_book(
         setattr(book, field, value)
 
     try:
-        BookSearchService(db).refresh_document(book.id)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         _raise_integrity_error(exc)
     db.refresh(book)
-    MeiliSearchService().upsert_book(book)
+    _refresh_search_index(db, book)
     return book
 
 

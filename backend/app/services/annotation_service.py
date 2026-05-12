@@ -6,7 +6,13 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.annotation import Annotation, Bookmark
+from app.models.book import Book
 from app.models.user import User
+
+
+def _ensure_book_exists(db: Session, book_id: UUID) -> None:
+    if not db.query(Book.id).filter(Book.id == book_id).first():
+        raise ValueError("Book not found")
 
 
 class BookmarkService:
@@ -23,6 +29,7 @@ class BookmarkService:
         return rows, len(rows)
 
     def create(self, book_id: UUID, user: User, payload: dict) -> Bookmark:
+        _ensure_book_exists(self.db, book_id)
         row = Bookmark(user_id=user.id, book_id=book_id, **payload)
         self.db.add(row)
         self.db.commit()
@@ -69,6 +76,7 @@ class AnnotationService:
         return rows, len(rows)
 
     def create(self, book_id: UUID, user: User, payload: dict) -> Annotation:
+        _ensure_book_exists(self.db, book_id)
         row = Annotation(user_id=user.id, book_id=book_id, **payload)
         self.db.add(row)
         self.db.commit()

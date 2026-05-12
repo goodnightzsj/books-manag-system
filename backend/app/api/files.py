@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user_lenient
 from app.core.config import settings
 from app.db.base import get_db
 from app.models.book import Book
@@ -89,7 +89,7 @@ def _iter_file_range(file_path: str, start: int, end: int):
 def download_book(
     book_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_lenient),
 ):
     book = _get_book_or_404(db, book_id)
     file_path = _resolve_book_file(book)
@@ -107,7 +107,7 @@ def stream_book(
     book_id: UUID,
     range_header: str | None = Header(default=None, alias="Range"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_lenient),
 ):
     book = _get_book_or_404(db, book_id)
     file_path = _resolve_book_file(book)
@@ -148,7 +148,7 @@ def stream_book(
 def head_stream_book(
     book_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_lenient),
 ):
     book = _get_book_or_404(db, book_id)
     file_path = _resolve_book_file(book)

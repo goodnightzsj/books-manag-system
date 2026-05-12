@@ -84,6 +84,10 @@ def process_scan_item(item_id: str):
                     db.commit()
         return str(result.book_id)
     except Exception as exc:
+        # process_file may have left the session in a failed-transaction state;
+        # roll back before touching it again so the failure gets recorded
+        # instead of leaving the item stuck in PROCESSING.
+        db.rollback()
         scan_jobs = ScanJobService(db)
         scan_jobs.mark_item_finished(item_uuid, status="failed", error_message=str(exc))
         if job_id is not None:

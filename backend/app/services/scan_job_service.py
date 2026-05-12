@@ -37,8 +37,15 @@ class ScanJobService:
         return query.all(), query.count()
 
     def claim_job(self, job_id: UUID) -> ScanJob | None:
-        job = self.get_job(job_id)
+        # Row lock so two workers can't both flip the same QUEUED job to RUNNING.
+        job = (
+            self.db.query(ScanJob)
+            .filter(ScanJob.id == job_id)
+            .with_for_update()
+            .first()
+        )
         if not job or job.status != ScanJobStatus.QUEUED:
+            self.db.commit()
             return None
         job.status = ScanJobStatus.RUNNING
         job.started_at = datetime.utcnow()
@@ -65,8 +72,14 @@ class ScanJobService:
         return items
 
     def claim_item(self, item_id: UUID) -> ScanJobItem | None:
-        item = self.db.query(ScanJobItem).filter(ScanJobItem.id == item_id).first()
+        item = (
+            self.db.query(ScanJobItem)
+            .filter(ScanJobItem.id == item_id)
+            .with_for_update()
+            .first()
+        )
         if not item or item.status not in {ScanItemStatus.QUEUED, ScanItemStatus.FAILED}:
+            self.db.commit()
             return None
         item.status = ScanItemStatus.PROCESSING
         item.updated_at = datetime.utcnow()
@@ -75,36 +88,72 @@ class ScanJobService:
         return item
 
     def mark_item_finished(self, item_id: UUID, *, status: str, book_id: UUID | None = None, detected_hash: str | None = None, error_message: str | None = None) -> None:
-        item = self.db.query(ScanJobItem).filter(ScanJobItem.id == item_id).first()
-        if not item:
+        item_status = ScanItemStatus(status)
+        # Transition the item only if it is still in-flight. The rowcount tells
+        # us whether *this* call actually moved it, which keeps the per-job
+        # counter bump idempotent under retries / duplicate task delivery.
+        moved = (
+            self.db.query(ScanJobItem)
+            .filter(
+                ScanJobItem.id == item_id,
+                ScanJobItem.status.in_({ScanItemStatus.QUEUED, ScanItemStatus.PROCESSING}),
+            )
+            .update(
+                {
+                    ScanJobItem.status: item_status,
+                    ScanJobItem.book_id: book_id,
+                    ScanJobItem.detected_hash: detected_hash,
+                    ScanJobItem.error_message: error_message,
+                    ScanJobItem.updated_at: datetime.utcnow(),
+                },
+                synchronize_session=False,
+            )
+        )
+        if not moved:
+            self.db.commit()
             return
-        item.status = ScanItemStatus(status)
-        item.book_id = book_id
-        item.detected_hash = detected_hash
-        item.error_message = error_message
-        item.updated_at = datetime.utcnow()
 
-        job = self.get_job(item.job_id)
-        if job:
-            job.processed_items += 1
-            if item.status in {ScanItemStatus.CREATED, ScanItemStatus.UPDATED}:
-                job.success_items += 1
-            elif item.status == ScanItemStatus.SKIPPED:
-                job.skipped_items += 1
-            elif item.status == ScanItemStatus.FAILED:
-                job.failed_items += 1
+        job_id = self.db.query(ScanJobItem.job_id).filter(ScanJobItem.id == item_id).scalar()
+        if job_id is not None:
+            increments = {ScanJob.processed_items: ScanJob.processed_items + 1}
+            if item_status in {ScanItemStatus.CREATED, ScanItemStatus.UPDATED}:
+                increments[ScanJob.success_items] = ScanJob.success_items + 1
+            elif item_status == ScanItemStatus.SKIPPED:
+                increments[ScanJob.skipped_items] = ScanJob.skipped_items + 1
+            elif item_status == ScanItemStatus.FAILED:
+                increments[ScanJob.failed_items] = ScanJob.failed_items + 1
+            # In-DB UPDATE => atomic increment, no read-modify-write race.
+            self.db.query(ScanJob).filter(ScanJob.id == job_id).update(
+                increments, synchronize_session=False
+            )
         self.db.commit()
 
     def maybe_finalize_job(self, job_id: UUID) -> str:
-        job = self.get_job(job_id)
+        # Lock the job row: only one worker gets to perform the finalize
+        # transition even when several items finish at the same moment.
+        job = (
+            self.db.query(ScanJob)
+            .filter(ScanJob.id == job_id)
+            .with_for_update()
+            .first()
+        )
         if not job:
+            self.db.commit()
             return "running"
+        if job.status in {
+            ScanJobStatus.COMPLETED,
+            ScanJobStatus.PARTIAL_SUCCESS,
+            ScanJobStatus.FAILED,
+        }:
+            self.db.commit()
+            return job.status.value
         if job.total_items == 0:
             job.status = ScanJobStatus.COMPLETED
             job.finished_at = datetime.utcnow()
             self.db.commit()
             return job.status.value
         if job.processed_items < job.total_items:
+            self.db.commit()
             return "running"
         if job.failed_items and job.success_items:
             job.status = ScanJobStatus.PARTIAL_SUCCESS
