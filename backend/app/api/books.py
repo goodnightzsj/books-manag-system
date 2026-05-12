@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_admin
 from app.db.base import get_db
 from app.models.book import Book, FileFormat
+from app.models.scan_job import ScanJobItem
 from app.models.user import User
 from app.schemas.book import Book as BookSchema, BookCreate, BookList, BookUpdate
 from app.services.meilisearch_service import MeiliSearchService
@@ -136,6 +137,22 @@ def delete_book(
             detail="Book not found",
         )
 
+    # Unlink scan-job items first. They keep `book_id` as a plain FK (no
+    # relationship on Book, so SQLAlchemy's delete-cascade doesn't reach them),
+    # which would otherwise raise a ForeignKeyViolation on delete. Newer schemas
+    # carry ON DELETE SET NULL, but doing it here keeps the endpoint correct on
+    # databases that predate that migration.
+    db.query(ScanJobItem).filter(ScanJobItem.book_id == book_id).update(
+        {ScanJobItem.book_id: None}, synchronize_session=False
+    )
+
     db.delete(book)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Book is still referenced by other records and cannot be deleted",
+        ) from exc
     MeiliSearchService().delete_book(book_id)

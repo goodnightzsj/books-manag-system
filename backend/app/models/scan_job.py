@@ -64,7 +64,9 @@ class ScanJobItem(Base):
     file_path = Column(Text, nullable=False)
     file_format = Column(String, nullable=True)
     status = Column(PgEnum(ScanItemStatus), nullable=False, default=ScanItemStatus.QUEUED)
-    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=True)
+    # SET NULL (not CASCADE): a scan-job item is an audit record of what was
+    # scanned; deleting the resulting book should keep the history but unlink it.
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="SET NULL"), nullable=True)
     detected_hash = Column(String)
     error_message = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
