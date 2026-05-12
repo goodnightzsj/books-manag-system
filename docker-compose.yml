@@ -36,9 +36,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: books-redis
-    # NB: don't pin `user:` here — the redis_data named volume is created
-    # root-owned, so a non-root uid can't write appendonly.aof and the
-    # container crash-loops. cap_drop + no-new-privileges still apply.
+    # Run as the alpine `redis` user. NB: with cap_drop:[ALL] the container
+    # loses CAP_DAC_OVERRIDE, so even root would be denied on the 0700
+    # appendonlydir — a fixed non-root uid that matches the data dir's owner is
+    # actually required here, not optional. (Existing redis_data volume is
+    # owned by 999:1000; a brand-new volume would need a one-off chown.)
+    user: "999:1000"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
