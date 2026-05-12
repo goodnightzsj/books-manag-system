@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from app.db.base import SessionLocal
 from app.models.book import Book, HashStatus
 from app.services.book_ingest_service import BookIngestService
@@ -21,13 +23,27 @@ def compute_book_hash(book_id: str, item_id: str | None = None):
         file_path = FileAccessService().resolve_book_file(book.file_path)
         hash_service = HashService()
         content_hash = hash_service.compute_sha256(file_path)
-        resolved_book = BookIngestService(db).apply_hash_result(
-            book_id=book_uuid,
-            content_hash=content_hash,
-            algorithm=hash_service.DEFAULT_ALGORITHM,
-            item_id=item_uuid,
-        )
-        db.commit()
+        try:
+            resolved_book = BookIngestService(db).apply_hash_result(
+                book_id=book_uuid,
+                content_hash=content_hash,
+                algorithm=hash_service.DEFAULT_ALGORITHM,
+                item_id=item_uuid,
+            )
+            db.commit()
+        except IntegrityError:
+            # A concurrent hash of an identical-content book committed the
+            # same content_hash first (partial-unique index race). Retry: now
+            # the duplicate is visible and apply_hash_result takes the merge
+            # path instead of leaving this book stuck FAILED.
+            db.rollback()
+            resolved_book = BookIngestService(db).apply_hash_result(
+                book_id=book_uuid,
+                content_hash=content_hash,
+                algorithm=hash_service.DEFAULT_ALGORITHM,
+                item_id=item_uuid,
+            )
+            db.commit()
         return str(resolved_book.id)
     except Exception as exc:
         # The failing op may have left the session in a failed-transaction

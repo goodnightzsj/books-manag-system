@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.annotation import Annotation, Bookmark
 from app.models.book import Book, FileFormat, HashStatus, book_category
 from app.models.book_file import BookFile
 from app.models.note import BookNote
@@ -191,6 +192,14 @@ class BookIngestService:
             {BookNote.book_id: canonical.id},
             synchronize_session=False,
         )
+        # bookmarks/annotations FK to books is ON DELETE CASCADE — without
+        # reassigning them here, the user's bookmarks & highlights on the
+        # losing record would be silently deleted when `duplicate` is removed.
+        for model in (Bookmark, Annotation):
+            self.db.query(model).filter(model.book_id == duplicate.id).update(
+                {model.book_id: canonical.id},
+                synchronize_session=False,
+            )
         self.db.query(ScanJobItem).filter(ScanJobItem.book_id == duplicate.id).update(
             {ScanJobItem.book_id: canonical.id},
             synchronize_session=False,

@@ -1,4 +1,6 @@
+import ipaddress
 import logging
+import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -8,6 +10,29 @@ from PIL import Image
 from app.core.config import settings
 from app.models.book import Book, FileFormat
 from app.services.file_access_service import FileAccessService
+
+_MAX_COVER_BYTES = 16 * 1024 * 1024  # cap downloaded cover size
+
+
+def _resolves_to_public_ip(host: str) -> bool:
+    """True only if every resolved address for `host` is a routable public IP.
+
+    Blocks SSRF to loopback / private / link-local / metadata endpoints when a
+    metadata provider's cover_url (or a redirect) points inward.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False
+    return True
 
 logger = logging.getLogger(__name__)
 
@@ -102,15 +127,32 @@ class CoverService:
         if parsed.scheme not in {"http", "https"}:
             logger.error("Unsupported cover URL scheme: %s", url)
             return None
+        host = parsed.hostname or ""
+        if not host or not _resolves_to_public_ip(host):
+            logger.warning("Refusing cover download from non-public host: %s", url)
+            return None
 
         try:
-            with httpx.Client(follow_redirects=True) as client:
-                response = client.get(url, timeout=30)
-                if response.status_code != 200:
-                    return None
+            # follow_redirects=False: a 3xx could otherwise bounce us to an
+            # internal address that bypassed the host check above.
+            with httpx.Client(follow_redirects=False, timeout=30) as client:
+                with client.stream("GET", url) as response:
+                    if response.status_code != 200:
+                        return None
+                    cl = response.headers.get("content-length")
+                    if cl and cl.isdigit() and int(cl) > _MAX_COVER_BYTES:
+                        return None
+                    chunks: list[bytes] = []
+                    total = 0
+                    for chunk in response.iter_bytes():
+                        total += len(chunk)
+                        if total > _MAX_COVER_BYTES:
+                            return None
+                        chunks.append(chunk)
+                    data = b"".join(chunks)
                 suffix = self._guess_suffix(response.headers.get("content-type", ""), url)
                 cover_path = self.covers_dir / f"{book_id}_cover{suffix}"
-                cover_path.write_bytes(response.content)
+                cover_path.write_bytes(data)
                 self._generate_thumbnail(cover_path, book_id)
                 return f"/uploads/covers/{cover_path.name}"
         except Exception as exc:
